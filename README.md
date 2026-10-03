@@ -193,8 +193,8 @@ just build-iso            # or: just build-iso-nvidia   (needs sudo/rootful podm
 ls -lh output/dank-ws/bootiso/install.iso      # ~4 GB (dank-ws-nvidia: ~5 GB)
 ```
 
-ISOs are 4-5 GB, above GitHub's 2 GiB release-asset limit and awkward as workflow artifacts on the free
-runners, so they are **built locally** (the CI workflow above is manual) and published on the
+ISOs are 4-5 GB, above GitHub's 2 GiB release-asset limit, so release assets are split parts. The
+published ones were **built locally** (CI is manual only, see below) and are on the
 [`v0.1.0-iso` release](https://github.com/kmf/dank-ws/releases/tag/v0.1.0-iso) as split parts.
 
 ### Building the ISO in CI (manual)

@@ -13,7 +13,6 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: dank-ws
   BASE_TAG: c10s
   DEFAULT_TAG: latest
 
@@ -23,9 +22,23 @@ concurrency:
 
 jobs:
   build_push:
-    name: Build and push image
+    name: Build and push ${{ matrix.image_name }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: dank-ws
+            enable_nvidia: "0"
+            akmods_nvidia_image: scratch
+          - image_name: dank-ws-nvidia
+            enable_nvidia: "1"
+            akmods_nvidia_image: ghcr.io/ublue-os/akmods-nvidia-open:centos-10
+    env:
+      IMAGE_NAME: ${{ matrix.image_name }}
+      ENABLE_NVIDIA: ${{ matrix.enable_nvidia }}
+      AKMODS_NVIDIA_IMAGE: ${{ matrix.akmods_nvidia_image }}
     permissions:
       contents: read
       packages: write
@@ -51,6 +64,8 @@ jobs:
             --pull=newer \
             --build-arg BASE_TAG="${BASE_TAG}" \
             --build-arg IMAGE_NAME="${IMAGE_NAME}" \
+            --build-arg ENABLE_NVIDIA="${ENABLE_NVIDIA}" \
+            --build-arg AKMODS_NVIDIA_IMAGE="${AKMODS_NVIDIA_IMAGE}" \
             --build-arg IMAGE_SOURCE="${{ github.server_url }}/${{ github.repository }}" \
             --tag "${IMAGE_REF}:${DEFAULT_TAG}" \
             -f Containerfile .

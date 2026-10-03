@@ -194,7 +194,23 @@ ls -lh output/dank-ws/bootiso/install.iso      # ~4 GB (dank-ws-nvidia: ~5 GB)
 ```
 
 ISOs are 4-5 GB, above GitHub's 2 GiB release-asset limit and awkward as workflow artifacts on the free
-runners, so they are **built locally** (no CI job); host them yourself.
+runners, so they are **built locally** (no CI job) and published on the
+[`v0.1.0-iso` release](https://github.com/kmf/dank-ws/releases/tag/v0.1.0-iso) as split parts.
+
+### Downloading a prebuilt ISO
+
+Each ISO is split into <2 GiB parts (`split -b 1900M`). Download all parts of the variant you want plus
+`SHA256SUMS` from the release, then reassemble and verify:
+
+```bash
+cat dank-ws-install.iso.part* > dank-ws-install.iso                    # or dank-ws-nvidia-install.iso.part*
+sha256sum -c SHA256SUMS --ignore-missing
+# or with the GitHub CLI:
+gh release download v0.1.0-iso -R kmf/dank-ws -p 'dank-ws-install.iso.part*' -p SHA256SUMS
+```
+
+`SHA256SUMS.parts` holds the checksums of the individual parts. The prebuilt ISOs were only tested in
+QEMU/UEFI.
 
 ### Writing the USB stick
 

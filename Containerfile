@@ -36,6 +36,7 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y copr enable avengemedia/dms-git && \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
+    dnf -y copr enable atim/starship && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/brave-browser.repo \
         https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/docker-ce.repo \
@@ -43,7 +44,7 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install \
         quickshell-git matugen cliphist danksearch dgop dankcalendar-git \
         dms niri ghostty kitty dms-greeter cava kf6-kimageformats && \
-    dnf -y install gcc zstd file procps-ng git flatpak && \
+    dnf -y install gcc zstd file procps-ng git flatpak starship && \
     dnf -y install brave-origin && \
     rpm -ql brave-origin | head -40 && \
     dnf -y install docker-ce docker-ce-cli containerd.io \
@@ -68,6 +69,7 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y copr disable avengemedia/dms-git && \
     dnf -y copr disable kmf/dank-ws-copr && \
     dnf -y copr disable yalter/niri && \
+    dnf -y copr disable atim/starship && \
     sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/brave-browser.repo /etc/yum.repos.d/docker-ce.repo && \
     dnf clean all && \
     find /var -mindepth 1 -delete && \

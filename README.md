@@ -7,11 +7,12 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
 - **ghostty** and **kitty** terminals
 - **dms-greeter** on **greetd** as the login screen (replaces gdm if present)
 - `cava`, `kf6-kimageformats`
+- **starship** prompt (bash/zsh) with a system-wide default config - see [Starship](#starship)
 - **Homebrew** (Linuxbrew, unpacked on first boot), **Bazaar** (Flathub app store, Flatpak),
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)
 
 Packages come from EPEL/CRB plus the COPRs `avengemedia/danklinux`, `avengemedia/dms-git`,
-`yalter/niri` and [`kmf/dank-ws-copr`](https://github.com/kmf/dank-ws-copr).
+`yalter/niri`, `atim/starship` (EL10 builds; starship is not in EPEL 10) and [`kmf/dank-ws-copr`](https://github.com/kmf/dank-ws-copr).
 The COPR repos are disabled again at the end of the build. Brave's and Docker's yum repos are
 left on disk but disabled (`enabled=0`) after install, so updates come from rebuilding the image.
 
@@ -60,6 +61,11 @@ Docker's CentOS repo; `docker.service` and `containerd.service` are enabled.
   (`sudo usermod -aG docker $USER`) grants **root-equivalent** access to the host.
 - **Conflicts:** `podman-docker` conflicts with `docker-ce`; do not layer it. Use `podman` directly, or
   Docker, not the compat shim alongside.
+
+### Starship
+Installed from the `atim/starship` COPR. `/etc/profile.d/starship.sh` initialises it for interactive
+bash/zsh (skipped for `TERM=dumb`/`linux` and when `~/.config/no-starship` exists). Without a
+`~/.config/starship.toml` the system default `/etc/starship.toml` (no Nerd Font glyphs required) is used.
 
 ## Per-user setup (runtime, NOT at image build time)
 

@@ -1,0 +1,35 @@
+# System-wide default starship config (used when ~/.config/starship.toml does not exist).
+# Deliberately free of Nerd Font glyphs so it renders in any terminal; copy it to
+# ~/.config/starship.toml to customise, or run `starship preset nerd-font-symbols`.
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = true
+command_timeout = 500
+
+format = """
+$username$hostname$directory$git_branch$git_status$cmd_duration$line_break$character"""
+
+[character]
+success_symbol = '[❯](bold green)'
+error_symbol = '[❯](bold red)'
+
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+
+[username]
+format = '[$user]($style)@'
+# only shown over SSH, as root, or in containers
+show_always = false
+
+[hostname]
+ssh_only = true
+format = '[$hostname]($style) '
+
+[git_branch]
+symbol = ''
+format = 'on [$symbol$branch]($style) '
+
+[cmd_duration]
+min_time = 2000
+format = 'took [$duration]($style) '

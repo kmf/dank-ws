@@ -10,8 +10,6 @@
 
 ARG BASE_TAG="c10s"
 
-# Homebrew payload + units (brew-setup.service unpacks it on first boot).
-# Same source as ublue-os/bluefin-lts; pinned by digest, bump deliberately.
 FROM ghcr.io/ublue-os/brew:latest@sha256:cf6388d6edb3a6fad699f06c0ceb3807f8f1368f942b08f8cc6d45ac4fd1cd92 AS brew
 
 FROM quay.io/centos-bootc/centos-bootc:${BASE_TAG}
@@ -55,6 +53,18 @@ RUN --mount=type=tmpfs,dst=/var \
       done ) && \
     ( grep -rIl '/opt/brave.com' /usr /etc 2>/dev/null | \
           xargs -r sed -i 's|/opt/brave.com|/usr/lib/brave.com|g' || true ) && \
+    dnf config-manager --add-repo=https://negativo17.org/repos/epel-multimedia.repo && \
+    dnf config-manager --set-disabled epel-multimedia && \
+    dnf -y install --enablerepo=epel-multimedia -x 'PackageKit*' \
+        ffmpeg libavcodec @multimedia \
+        gstreamer1-plugins-{bad-free,bad-free-libs,good,base} \
+        gstreamer1-plugins-ugly gstreamer1-plugin-libav \
+        lame lame-libs libjxl ffmpegthumbnailer openh264 x264-libs x265-libs \
+        libva-utils libva-intel-media-driver && \
+    dnf -y install \
+        linux-firmware alsa-sof-firmware alsa-firmware intel-vsc-firmware \
+        iwlwifi-dvm-firmware iwlwifi-mvm-firmware iwlegacy-firmware \
+        libertas-firmware qcom-firmware microcode_ctl fwupd && \
     mkdir -p /etc/flatpak/remotes.d && \
     curl -fsSL --retry 3 -o /etc/flatpak/remotes.d/flathub.flatpakrepo \
         https://dl.flathub.org/repo/flathub.flatpakrepo && \

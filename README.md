@@ -194,8 +194,21 @@ ls -lh output/dank-ws/bootiso/install.iso      # ~4 GB (dank-ws-nvidia: ~5 GB)
 ```
 
 ISOs are 4-5 GB, above GitHub's 2 GiB release-asset limit and awkward as workflow artifacts on the free
-runners, so they are **built locally** (no CI job) and published on the
+runners, so they are **built locally** (the CI workflow above is manual) and published on the
 [`v0.1.0-iso` release](https://github.com/kmf/dank-ws/releases/tag/v0.1.0-iso) as split parts.
+
+### Building the ISO in CI (manual)
+
+The **Build installer ISO** workflow (`.github/workflows/build-iso.yml`, `workflow_dispatch` only) pulls
+`ghcr.io/<owner>/<variant>:<tag>` and runs the same bootc-image-builder step as the Justfile on a free
+`ubuntu-24.04` runner (about 11 minutes for dank-ws). Inputs: `variant` (`dank-ws`, `dank-ws-nvidia` or
+`both`, one matrix job each), `tag`, `publish_release` and `release_tag`. The ISO and its checksum are
+uploaded as an Actions artifact (kept 14 days, stored uncompressed). With `publish_release` the ISO is
+split into 1900M parts and attached to the release (created as a prerelease if missing):
+
+```bash
+gh workflow run build-iso.yml -f variant=both -f publish_release=true -f release_tag=v0.2.0-iso
+```
 
 ### Downloading a prebuilt ISO
 

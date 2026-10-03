@@ -1,0 +1,90 @@
+---
+name: Build and publish image
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+  schedule:
+    - cron: "0 5 * * 0" # weekly, Sunday 05:00 UTC (picks up base image + COPR updates)
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: dank-ws
+  BASE_TAG: c10s
+  DEFAULT_TAG: latest
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_push:
+    name: Build and push image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Prepare environment
+        run: |
+          # GHCR requires lowercase repository paths
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "IMAGE_REGISTRY=ghcr.io/${OWNER}" >> "${GITHUB_ENV}"
+          echo "IMAGE_REF=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "${GITHUB_ENV}"
+          echo "BUILD_DATE=$(date -u +%Y%m%d)" >> "${GITHUB_ENV}"
+
+      - name: Maximize build space
+        uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6 # v10
+
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Build image
+        run: |
+          sudo podman build \
+            --pull=newer \
+            --build-arg BASE_TAG="${BASE_TAG}" \
+            --build-arg IMAGE_NAME="${IMAGE_NAME}" \
+            --build-arg IMAGE_SOURCE="${{ github.server_url }}/${{ github.repository }}" \
+            --tag "${IMAGE_REF}:${DEFAULT_TAG}" \
+            -f Containerfile .
+          sudo podman tag "${IMAGE_REF}:${DEFAULT_TAG}" "${IMAGE_REF}:${BUILD_DATE}"
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Push to GHCR
+        if: github.event_name != 'pull_request'
+        id: push
+        run: |
+          for tag in "${DEFAULT_TAG}" "${BUILD_DATE}"; do
+            for i in 1 2 3; do
+              sudo podman push --digestfile=/tmp/digestfile "${IMAGE_REF}:${tag}" && break || sleep $((5 * i))
+            done
+          done
+          echo "digest=$(cat /tmp/digestfile)" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Sign image
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          COSIGN_PASSWORD: "" # key must be generated with an empty password (see README)
+          COSIGN_EXPERIMENTAL: "false"
+        run: |
+          if [ -z "${COSIGN_PRIVATE_KEY}" ]; then
+            echo "::error::Repository secret SIGNING_SECRET is not set (see README)"; exit 1
+          fi
+          cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE_REF}@${DIGEST}"

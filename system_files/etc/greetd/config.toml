@@ -1,0 +1,10 @@
+# greetd runs dms-greeter (DankMaterialShell login screen) on niri.
+# Same content `dms-greeter enable` writes; baked in because enable/sync
+# are interactive/runtime steps and not suitable for an image build.
+# To use a different compositor change `--command` (niri | hyprland | sway | ...).
+[terminal]
+vt = 1
+
+[default_session]
+user = "greeter"
+command = "/usr/bin/dms-greeter --command niri"

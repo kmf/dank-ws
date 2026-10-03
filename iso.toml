@@ -1,0 +1,23 @@
+# bootc-image-builder config for the Anaconda installer ISO (used by `just build-iso`).
+# The ISO embeds the image it was built from; the kickstart then re-points the
+# installed system at the published GHCR image so it receives updates.
+# EDIT the image reference below to match your GitHub owner / image name.
+[customizations.installer.kickstart]
+contents = """
+%post
+bootc switch --mutate-in-place --transport registry ghcr.io/kmf/dank-ws:latest
+%end
+"""
+
+[customizations.installer.modules]
+enable = [
+  "org.fedoraproject.Anaconda.Modules.Storage"
+]
+disable = [
+  "org.fedoraproject.Anaconda.Modules.Network",
+  "org.fedoraproject.Anaconda.Modules.Security",
+  "org.fedoraproject.Anaconda.Modules.Services",
+  "org.fedoraproject.Anaconda.Modules.Users",
+  "org.fedoraproject.Anaconda.Modules.Subscription",
+  "org.fedoraproject.Anaconda.Modules.Timezone"
+]

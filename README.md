@@ -28,7 +28,7 @@ One `Containerfile` builds two images (selected by `--build-arg ENABLE_NVIDIA=0|
 | `ghcr.io/<owner>/dank-ws` | Everything above + multimedia codecs + extra firmware |
 | `ghcr.io/<owner>/dank-ws-nvidia` | `dank-ws` + proprietary NVIDIA driver (open kernel modules) - see [NVIDIA variant](#nvidia-variant-dank-ws-nvidia) |
 
-Each variant will get its own install ISO later; there is no ISO work for the NVIDIA variant yet.
+Each variant has its own interactive install ISO - see [Installer ISO](#installer-iso-live-usb).
 
 ## Layout
 
@@ -38,8 +38,9 @@ Each variant will get its own install ISO later; there is no ISO work for the NV
 | `build/` | `nvidia.sh` (kernel swap + NVIDIA driver, only run when `ENABLE_NVIDIA=1`) and `nvidia_files/` (Secure Boot key enrollment helper) |
 | `system_files/` | Copied into `/`: greetd config, greeter + `docker` group sysusers/tmpfiles, `flatpak-preinstall.service`, Bazaar preinstall list |
 | `.github/workflows/build.yml` | Matrix-build both images, push to GHCR, sign with cosign (weekly + on push to `main`) |
-| `Justfile` | `build`, `build-nvidia`, `build-qcow2`, `build-qcow2-nvidia`, `build-iso`, `check`, `clean` |
-| `image.toml` / `iso.toml` | bootc-image-builder configs (VM disk / installer ISO) |
+| `Justfile` | `build`, `build-nvidia`, `build-qcow2`, `build-qcow2-nvidia`, `build-iso`, `build-iso-nvidia`, `check`, `clean` |
+| `image.toml` | bootc-image-builder config for the VM disk image (`just build-qcow2`) |
+| `iso.toml` | bootc-image-builder config template for the interactive installer ISO (`@IMAGE@` is filled in per variant) |
 
 ## Extra components
 
@@ -163,11 +164,67 @@ and a `sigstoreSigned` entry for `ghcr.io/<owner>/dank-ws` in `/etc/containers/p
 just build            # sudo podman build -> localhost/dank-ws:latest
 just build-nvidia     # NVIDIA variant -> localhost/dank-ws-nvidia:latest
 just build-qcow2      # output/qcow2/disk.qcow2 via bootc-image-builder + image.toml
-just build-iso        # output/bootiso/install.iso via iso.toml
+just build-iso        # output/dank-ws/bootiso/install.iso (interactive installer, see below)
+just build-iso-nvidia # output/dank-ws-nvidia/bootiso/install.iso
 ```
 
-Before building images, edit the placeholder user/password in `image.toml`, and the
-`ghcr.io/kmf/dank-ws:latest` reference in `iso.toml` (and `IMAGE_VENDOR` in the Containerfile) if you are not `kmf`.
+Before building a VM image, edit the placeholder user/password in `image.toml`. If you are not `kmf`, set
+`ISO_OWNER=<owner>` for the ISO targets (and `IMAGE_VENDOR` in the Containerfile).
+
+## Installer ISO (live USB)
+
+`just build-iso` / `just build-iso-nvidia` build an **interactive Anaconda installer** with
+[bootc-image-builder](https://github.com/osbuild/bootc-image-builder) (`--type anaconda-iso`). The ISO
+**embeds the image it was built from**, so installing works offline; the kickstart in `iso.toml` only adds a
+`%post` step that re-points the installed system at `ghcr.io/<owner>/<image>:latest` (`bootc switch
+--mutate-in-place`, no download) so `bootc upgrade` / `uupd` follow the published image from then on.
+That means the image must exist on GHCR (public) for updates to work; the switch does **not** enforce a
+signature policy (see [enforce signature verification](#optional-enforce-signature-verification-on-the-installed-system)).
+
+bootc-image-builder only injects the `ostreecontainer` kickstart command. Because `iso.toml` contains no
+`autopart`/`clearpart`/`user`/`text --non-interactive` lines, Anaconda asks for everything on the target
+machine: language, keyboard, time zone, **Installation Destination** (automatic or custom partitioning, with
+the **"Encrypt my data" (LUKS2) checkbox** and a passphrase prompt), network and **user creation**. The
+Storage, Users, Network, Localization and Timezone Anaconda modules are enabled in `iso.toml` (`disable`
+overrides `enable`, so never list them under `disable`).
+
+```bash
+just build-iso            # or: just build-iso-nvidia   (needs sudo/rootful podman, ~15 GB free disk)
+ls -lh output/dank-ws/bootiso/install.iso      # ~4 GB (dank-ws-nvidia: ~5 GB)
+```
+
+ISOs are 4-5 GB, above GitHub's 2 GiB release-asset limit and awkward as workflow artifacts on the free
+runners, so they are **built locally** (no CI job); host them yourself.
+
+### Writing the USB stick
+
+```bash
+# DESTRUCTIVE: replace /dev/sdX with the USB stick (check with lsblk!)
+sudo dd if=output/dank-ws/bootiso/install.iso of=/dev/sdX bs=4M status=progress oflag=sync
+```
+
+(or Fedora Media Writer / `gnome-disk-utility` "Restore Disk Image"). Boot it in UEFI mode.
+
+### Using the installer / disk encryption
+
+1. Choose language, keyboard and time zone, and confirm them (the hub shows warnings until each spoke is visited).
+2. **Installation Destination**: select the disk, tick **Encrypt my data**, press *Done* and enter the LUKS
+   passphrase. The default layout is an EFI partition, an XFS `/boot` and one LUKS2 partition holding LVM
+   (root + swap). Choose *Custom* for your own layout.
+3. **User Creation** (tick *administrator* to get `sudo`); the root account stays disabled unless you set it.
+4. *Begin Installation*, reboot, and enter the LUKS passphrase at the boot prompt.
+
+On boot dracut may print `Failed to start systemd-cryptsetup@luks-... Unit ... not found`; this is a harmless
+duplicate unlock attempt in the initramfs - the passphrase prompt follows and the boot continues.
+
+**Optional follow-up (untested here): TPM2 auto-unlock.** After the first boot you can add a TPM2 key slot
+with `sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 /dev/disk/by-uuid/<LUKS-UUID>` and pass
+`rd.luks.options=<LUKS-UUID>=tpm2-device=auto` as a kernel argument; keep the passphrase as the recovery key.
+PCR 7 binds to the Secure Boot state, so re-enroll after changing Secure Boot keys.
+
+**NVIDIA ISO + Secure Boot:** the installer boots under Secure Boot (shim), but the installed
+`dank-ws-nvidia` system needs the akmods key enrolled once - run `dank-ws-enroll-mok` after the first boot
+(see [NVIDIA variant](#nvidia-variant-dank-ws-nvidia)).
 
 ## Status / caveats
 

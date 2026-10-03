@@ -1,0 +1,134 @@
+---
+name: Build installer ISO
+
+# Manual only: builds the interactive Anaconda installer ISO (see README, "Installer ISO")
+# from an already published GHCR image. ISOs are 4-5 GB, so they are uploaded as
+# Actions artifacts (14 days) and, optionally, attached to a release as <2 GiB parts.
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Which image to build an installer ISO for
+        type: choice
+        options: [dank-ws, dank-ws-nvidia, both]
+        default: dank-ws
+      tag:
+        description: Image tag on GHCR to embed in the ISO
+        type: string
+        default: latest
+      publish_release:
+        description: Split the ISO into <2 GiB parts and attach them to a GitHub release
+        type: boolean
+        default: false
+      release_tag:
+        description: Release tag used when publish_release is set (created as a prerelease if missing)
+        type: string
+        default: iso-latest
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        env:
+          VARIANT: ${{ inputs.variant }}
+        run: |
+          case "${VARIANT}" in
+            both) echo 'matrix={"image_name":["dank-ws","dank-ws-nvidia"]}' >> "${GITHUB_OUTPUT}" ;;
+            dank-ws|dank-ws-nvidia) echo "matrix={\"image_name\":[\"${VARIANT}\"]}" >> "${GITHUB_OUTPUT}" ;;
+            *) echo "::error::unknown variant ${VARIANT}"; exit 1 ;;
+          esac
+
+  build_iso:
+    name: Build ISO for ${{ matrix.image_name }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    permissions:
+      contents: write # create/update the release
+      packages: read # pull the image from GHCR (also works if the package is private)
+    env:
+      IMAGE_NAME: ${{ matrix.image_name }}
+      IMAGE_TAG: ${{ inputs.tag }}
+      BIB_IMAGE: quay.io/centos-bootc/bootc-image-builder:latest
+    steps:
+      - name: Maximize build space
+        uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6 # v10
+
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Pull image from GHCR
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "IMAGE_OWNER=${OWNER}" >> "${GITHUB_ENV}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          # bootc-image-builder reads the image from root's container storage
+          sudo podman pull "ghcr.io/${OWNER}/${IMAGE_NAME}:${IMAGE_TAG}"
+          df -h /
+
+      - name: Build installer ISO
+        run: |
+          # Same logic as the Justfile's _build-iso: iso.toml is a template, @IMAGE@ is the
+          # GHCR image the installed system is switched to (so it follows :latest after install)
+          mkdir -p "output/${IMAGE_NAME}"
+          sed "s|@IMAGE@|ghcr.io/${IMAGE_OWNER}/${IMAGE_NAME}:latest|" iso.toml > "output/${IMAGE_NAME}/iso.toml"
+          sudo podman run \
+            --rm --privileged --pull=newer --net=host \
+            --security-opt label=type:unconfined_t \
+            -v "$(pwd)/output/${IMAGE_NAME}/iso.toml":/config.toml:ro \
+            -v "$(pwd)/output/${IMAGE_NAME}":/output \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            "${BIB_IMAGE}" \
+            --type anaconda-iso \
+            --use-librepo=True \
+            "ghcr.io/${IMAGE_OWNER}/${IMAGE_NAME}:${IMAGE_TAG}"
+          sudo chown -R "$USER:$USER" output
+          mkdir -p dist
+          mv "output/${IMAGE_NAME}/bootiso/install.iso" "dist/${IMAGE_NAME}-install.iso"
+          sudo rm -rf output /var/lib/containers/storage
+          (cd dist && sha256sum "${IMAGE_NAME}-install.iso" | tee "SHA256SUMS-${IMAGE_NAME}")
+          ls -lh dist
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.image_name }}-install-iso
+          path: dist/
+          retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Publish release parts
+        if: inputs.publish_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          cd dist
+          # GitHub release assets are limited to 2 GiB per file
+          split -b 1900M -d -a 2 "${IMAGE_NAME}-install.iso" "${IMAGE_NAME}-install.iso.part"
+          sha256sum "${IMAGE_NAME}"-install.iso.part* > "SHA256SUMS.parts-${IMAGE_NAME}"
+          rm "${IMAGE_NAME}-install.iso"
+          if ! gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            # may race with the other matrix job: fall through to upload if the release now exists
+            gh release create "${RELEASE_TAG}" --prerelease --title "Installer ISOs ${RELEASE_TAG}" \
+              --notes "Split installer ISO parts. Reassemble: cat <name>-install.iso.part* > <name>-install.iso, then sha256sum -c SHA256SUMS-<name> --ignore-missing (see README)." \
+              || gh release view "${RELEASE_TAG}" >/dev/null
+          fi
+          gh release upload "${RELEASE_TAG}" --clobber \
+            "${IMAGE_NAME}"-install.iso.part* "SHA256SUMS-${IMAGE_NAME}" "SHA256SUMS.parts-${IMAGE_NAME}"

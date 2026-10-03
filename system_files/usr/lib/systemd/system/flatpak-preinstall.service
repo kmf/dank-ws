@@ -1,0 +1,15 @@
+[Unit]
+Description=Install preinstalled Flatpaks (Flathub)
+Wants=network-online.target
+After=network-online.target
+# Skipped silently when this flatpak build has no `preinstall` subcommand.
+ConditionPathExists=/usr/bin/flatpak
+
+[Service]
+Type=oneshot
+ExecCondition=/usr/bin/sh -c 'flatpak preinstall --help >/dev/null 2>&1'
+ExecStart=/usr/bin/flatpak preinstall -y
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

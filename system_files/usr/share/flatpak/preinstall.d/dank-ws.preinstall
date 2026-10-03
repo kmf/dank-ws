@@ -1,0 +1,6 @@
+# Flatpaks installed by flatpak-preinstall.service (see `flatpak preinstall`).
+# Comments must start with '#'; GKeyFile discards the file on a malformed line.
+
+# Bazaar: Flathub app store
+[Flatpak Preinstall io.github.kolunmi.Bazaar]
+Branch=stable

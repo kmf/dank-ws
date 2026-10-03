@@ -9,16 +9,24 @@
 # wireplumber-libs / ibus-libpinyin).
 
 ARG BASE_TAG="c10s"
+
+# Homebrew payload + units (brew-setup.service unpacks it on first boot).
+# Same source as ublue-os/bluefin-lts; pinned by digest, bump deliberately.
+FROM ghcr.io/ublue-os/brew:latest@sha256:cf6388d6edb3a6fad699f06c0ceb3807f8f1368f942b08f8cc6d45ac4fd1cd92 AS brew
+
 FROM quay.io/centos-bootc/centos-bootc:${BASE_TAG}
 
 ARG IMAGE_NAME="dank-ws"
 ARG IMAGE_VENDOR="kmf"
 ARG IMAGE_SOURCE=""
 
-# NOTE: /opt is deliberately NOT tmpfs-mounted here (unlike bluefin-lts):
-# nothing in this package set installs to /opt, and mounting it would silently
-# discard anything that did. If you add a package that installs to /opt, add
-# `--mount=type=tmpfs,dst=/opt` and handle its payload explicitly.
+# Homebrew system files (units, profile.d, limits, /usr/share/homebrew.tar.zst)
+COPY --from=brew /system_files /
+
+# NOTE: /opt is deliberately NOT tmpfs-mounted here (unlike bluefin-lts): the
+# only package that installs to /opt is brave-origin, and its payload is moved
+# to /usr/lib/brave.com explicitly below. Anything else that lands in /opt is
+# removed at the end (/opt -> /var/opt on bootc systems).
 RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/boot \
@@ -28,18 +36,39 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y copr enable avengemedia/dms-git && \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
+    curl -fsSL --retry 3 -o /etc/yum.repos.d/brave-browser.repo \
+        https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
+    curl -fsSL --retry 3 -o /etc/yum.repos.d/docker-ce.repo \
+        https://download.docker.com/linux/centos/docker-ce.repo && \
     dnf -y install \
         quickshell-git matugen cliphist danksearch dgop dankcalendar-git \
         dms niri ghostty kitty dms-greeter cava kf6-kimageformats && \
+    dnf -y install gcc zstd file procps-ng git flatpak && \
+    dnf -y install brave-origin && \
+    rpm -ql brave-origin | head -40 && \
+    dnf -y install docker-ce docker-ce-cli containerd.io \
+        docker-buildx-plugin docker-compose-plugin && \
+    ( test -d /opt/brave.com && mv /opt/brave.com /usr/lib/brave.com ) && \
+    ( find /usr /etc -lname '/opt/brave.com*' -print | while read -r l; do \
+          ln -snf "$(readlink "$l" | sed 's|^/opt/brave.com|/usr/lib/brave.com|')" "$l"; \
+      done ) && \
+    ( grep -rIl '/opt/brave.com' /usr /etc 2>/dev/null | \
+          xargs -r sed -i 's|/opt/brave.com|/usr/lib/brave.com|g' || true ) && \
+    mkdir -p /etc/flatpak/remotes.d && \
+    curl -fsSL --retry 3 -o /etc/flatpak/remotes.d/flathub.flatpakrepo \
+        https://dl.flathub.org/repo/flathub.flatpakrepo && \
     systemctl set-default graphical.target && \
     ( if systemctl list-unit-files gdm.service 2>/dev/null | grep -q '^gdm.service'; then \
           systemctl disable gdm.service; \
       fi ) && \
     systemctl enable greetd.service && \
+    systemctl enable brew-setup.service brew-update.timer brew-upgrade.timer && \
+    systemctl enable docker.service containerd.service && \
     dnf -y copr disable avengemedia/danklinux && \
     dnf -y copr disable avengemedia/dms-git && \
     dnf -y copr disable kmf/dank-ws-copr && \
     dnf -y copr disable yalter/niri && \
+    sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/brave-browser.repo /etc/yum.repos.d/docker-ce.repo && \
     dnf clean all && \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
@@ -50,7 +79,8 @@ COPY system_files/ /
 
 # Build-time leftovers: /var/roothome/buildinfo ships in the base image and
 # /run/* is written by dnf; bootc lint flags both.
-RUN rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy && ln -s /var/opt /opt
+RUN systemctl enable flatpak-preinstall.service && \
+    rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy && ln -s /var/opt /opt
 
 LABEL containers.bootc=1
 LABEL ostree.bootable=1

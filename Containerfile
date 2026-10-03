@@ -10,10 +10,25 @@
 
 ARG BASE_TAG="c10s"
 
+# Image variants (one Containerfile, two images):
+#   dank-ws         ENABLE_NVIDIA=0 (default)  codecs + extra firmware
+#   dank-ws-nvidia  ENABLE_NVIDIA=1            the above + proprietary NVIDIA driver
+# For the NVIDIA variant also pass
+#   --build-arg AKMODS_NVIDIA_IMAGE=ghcr.io/ublue-os/akmods-nvidia-open:centos-10
+# which supplies the matching kernel and prebuilt kmod-nvidia rpms. It defaults
+# to `scratch` so the base image never pulls it.
+ARG ENABLE_NVIDIA="0"
+ARG AKMODS_NVIDIA_IMAGE="scratch"
+
+# Homebrew payload + units (brew-setup.service unpacks it on first boot).
+# Same source as ublue-os/bluefin-lts; pinned by digest, bump deliberately.
 FROM ghcr.io/ublue-os/brew:latest@sha256:cf6388d6edb3a6fad699f06c0ceb3807f8f1368f942b08f8cc6d45ac4fd1cd92 AS brew
+
+FROM ${AKMODS_NVIDIA_IMAGE} AS akmods_nvidia
 
 FROM quay.io/centos-bootc/centos-bootc:${BASE_TAG}
 
+ARG ENABLE_NVIDIA
 ARG IMAGE_NAME="dank-ws"
 ARG IMAGE_VENDOR="kmf"
 ARG IMAGE_SOURCE=""
@@ -85,6 +100,20 @@ RUN --mount=type=tmpfs,dst=/var \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 
+# NVIDIA variant only: swap in the ublue-os akmods kernel and install the
+# proprietary NVIDIA driver (see build/nvidia.sh). No-op for the base image.
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    --mount=type=bind,from=akmods_nvidia,src=/,dst=/run/akmods \
+    --mount=type=bind,src=build,dst=/run/build \
+    if [ "${ENABLE_NVIDIA}" = "1" ]; then \
+        /run/build/nvidia.sh && \
+        dnf -y install --enablerepo=epel libva-nvidia-driver && \
+        dnf clean all && find /var -mindepth 1 -delete && \
+        rm -rf /run/rhsm /run/selinux-policy; \
+    fi
+
 # Config files (greetd config, greeter user/cache dir). Copied AFTER the
 # package install so our /etc/greetd/config.toml wins over the packaged one.
 COPY system_files/ /
@@ -98,7 +127,7 @@ LABEL containers.bootc=1
 LABEL ostree.bootable=1
 LABEL org.opencontainers.image.title="${IMAGE_NAME}"
 LABEL org.opencontainers.image.vendor="${IMAGE_VENDOR}"
-LABEL org.opencontainers.image.description="CentOS Stream 10 bootc image with niri, DankMaterialShell, ghostty and kitty"
+LABEL org.opencontainers.image.description="CentOS Stream 10 bootc image with niri, DankMaterialShell, ghostty and kitty (nvidia variant: ENABLE_NVIDIA=${ENABLE_NVIDIA})"
 LABEL org.opencontainers.image.source="${IMAGE_SOURCE}"
 
 RUN bootc container lint --fatal-warnings

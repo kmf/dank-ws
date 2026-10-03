@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Enroll the ublue-os akmods signing key (signs the prebuilt nvidia kernel modules)
+# so they load with Secure Boot enabled. Run once, then reboot and follow the blue
+# "MOK management" screen: Enroll MOK -> Continue -> enter the password you set here.
+set -euo pipefail
+CERT=/etc/pki/akmods/certs/akmods-ublue.der
+
+if ! command -v mokutil >/dev/null; then echo "mokutil is not installed" >&2; exit 1; fi
+if ! mokutil --sb-state 2>/dev/null | grep -q 'SecureBoot enabled'; then
+    echo "Secure Boot is not enabled; no key enrollment needed."; exit 0
+fi
+if mokutil --test-key "$CERT" 2>/dev/null | grep -q 'already enrolled'; then
+    echo "The akmods key is already enrolled."; exit 0
+fi
+if [[ $EUID -ne 0 ]]; then exec sudo "$0" "$@"; fi
+echo "You will be asked for a one-time password. Remember it: you need it on the next boot."
+mokutil --import "$CERT"
+echo "Done. Reboot now and complete the enrollment in the blue MOK manager screen."

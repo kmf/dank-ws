@@ -50,6 +50,7 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
     dnf -y copr enable atim/starship && \
+    dnf -y copr enable ublue-os/packages "epel-10-$(arch)" && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/brave-browser.repo \
         https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/docker-ce.repo \
@@ -90,11 +91,18 @@ RUN --mount=type=tmpfs,dst=/var \
     systemctl enable greetd.service && \
     systemctl enable brew-setup.service brew-update.timer brew-upgrade.timer && \
     systemctl enable docker.service containerd.service && \
+    dnf -y --setopt=retries=5 install uupd && \
+    uupd --help 2>&1 | grep -- '--disable-module-distrobox' && \
+    sed -i '/^ExecStart=/ s|uupd|& --disable-module-distrobox|' /usr/lib/systemd/system/uupd.service && \
+    grep -n '^ExecStart' /usr/lib/systemd/system/uupd.service && \
+    systemctl enable uupd.timer && \
+    systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service && \
     dnf -y copr disable avengemedia/danklinux && \
     dnf -y copr disable avengemedia/dms-git && \
     dnf -y copr disable kmf/dank-ws-copr && \
     dnf -y copr disable yalter/niri && \
     dnf -y copr disable atim/starship && \
+    dnf -y copr disable ublue-os/packages && \
     sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/brave-browser.repo /etc/yum.repos.d/docker-ce.repo && \
     dnf clean all && \
     find /var -mindepth 1 -delete && \

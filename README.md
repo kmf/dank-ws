@@ -106,6 +106,16 @@ negativo17's `nvidia-driver`, `nvidia-driver-cuda`, `nvidia-settings`, `libnvidi
   *Enroll MOK* in the blue screen. A login-shell hint reminds you while Secure Boot is on and the key is not enrolled.
 - The kernel is pinned to the akmods build, so kernel updates arrive with image rebuilds only.
 
+### Updates (uupd)
+[`uupd`](https://github.com/ublue-os/uupd) (Universal Blue's updater, from the `ublue-os/packages` COPR,
+enabled for the install only) updates the OS image (`bootc`), system Flatpaks and Homebrew
+(`/home/linuxbrew/.linuxbrew`) in one run. `uupd.timer` is enabled (daily around 04:00, with a random delay
+and catch-up after resume), and its service runs with `--disable-module-distrobox` (distrobox is not
+shipped). `bootc-fetch-apply-updates.timer`/`.service` are masked so the two updaters do not compete.
+Run it by hand with `sudo uupd` (`--dry-run` to preview; `--disable-module-brew|flatpak|system` to skip a
+module). A pending OS update is staged and applied on the next reboot (`uupd --apply` reboots).
+`brew-update.timer`/`brew-upgrade.timer` from the Homebrew image stay enabled alongside it.
+
 ## Per-user setup (runtime, NOT at image build time)
 
 `dms setup headless` writes into `$HOME` (niri config + DMS integration), so it is run once per

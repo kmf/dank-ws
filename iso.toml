@@ -1,23 +1,36 @@
-# bootc-image-builder config for the Anaconda installer ISO (used by `just build-iso`).
-# The ISO embeds the image it was built from; the kickstart then re-points the
-# installed system at the published GHCR image so it receives updates.
-# EDIT the image reference below to match your GitHub owner / image name.
+# bootc-image-builder config for the INTERACTIVE Anaconda installer ISO
+# (used by `just build-iso` / `just build-iso-nvidia`; @IMAGE@ is replaced by the Justfile).
+#
+# bootc-image-builder only adds the `ostreecontainer` command (installing the
+# container image embedded in the ISO, so the install works offline). Because this
+# kickstart contains no `text --non-interactive`, `autopart`, `clearpart`, `user` ...
+# lines, Anaconda runs fully interactively: language, keyboard, timezone,
+# installation destination (with the "Encrypt my data" LUKS checkbox and custom
+# partitioning) and user creation are all asked on the target machine.
+#
+# After install, %post re-points the system at the published GHCR image so it keeps
+# receiving updates (bootc/uupd) instead of staying on the embedded copy.
 [customizations.installer.kickstart]
 contents = """
 %post
-bootc switch --mutate-in-place --transport registry ghcr.io/kmf/dank-ws:latest
+bootc switch --mutate-in-place --transport registry @IMAGE@
 %end
 """
 
+# Default modules are Network, Payloads, Security, Services, Storage and Users;
+# Localization and Timezone add the language/keyboard and timezone spokes.
+# NOTE: `disable` wins over `enable`, so Storage/Users/Network must not be listed there.
 [customizations.installer.modules]
 enable = [
-  "org.fedoraproject.Anaconda.Modules.Storage"
-]
-disable = [
+  "org.fedoraproject.Anaconda.Modules.Localization",
   "org.fedoraproject.Anaconda.Modules.Network",
+  "org.fedoraproject.Anaconda.Modules.Payloads",
   "org.fedoraproject.Anaconda.Modules.Security",
   "org.fedoraproject.Anaconda.Modules.Services",
-  "org.fedoraproject.Anaconda.Modules.Users",
-  "org.fedoraproject.Anaconda.Modules.Subscription",
-  "org.fedoraproject.Anaconda.Modules.Timezone"
+  "org.fedoraproject.Anaconda.Modules.Storage",
+  "org.fedoraproject.Anaconda.Modules.Timezone",
+  "org.fedoraproject.Anaconda.Modules.Users"
+]
+disable = [
+  "org.fedoraproject.Anaconda.Modules.Subscription"
 ]

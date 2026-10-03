@@ -3,6 +3,7 @@ export base_tag := env("BASE_TAG", "c10s")
 export default_tag := env("DEFAULT_TAG", "latest")
 export nvidia_image_name := env("NVIDIA_IMAGE_NAME", "dank-ws-nvidia")
 export akmods_nvidia_image := env("AKMODS_NVIDIA_IMAGE", "ghcr.io/ublue-os/akmods-nvidia-open:centos-10")
+export iso_owner := env("ISO_OWNER", "kmf")
 export bib_image := env("BIB_IMAGE", "quay.io/centos-bootc/bootc-image-builder:latest")
 
 alias build-vm := build-qcow2
@@ -55,11 +56,7 @@ _build-bib target_image tag type config:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p output
-    if [[ "{{ type }}" == "anaconda-iso" ]]; then
-        sudo rm -rf output/bootiso
-    else
-        sudo rm -rf "output/{{ type }}"
-    fi
+    sudo rm -rf "output/{{ type }}"
     sudo podman run \
         --rm -it --privileged --pull=newer --net=host \
         --security-opt label=type:unconfined_t \
@@ -80,9 +77,37 @@ build-qcow2 target_image=("localhost/" + image_name) tag=default_tag: (build tar
 [group('Build Virtual Machine Image')]
 build-qcow2-nvidia target_image=("localhost/" + nvidia_image_name) tag=default_tag: (build-nvidia target_image tag) (_build-bib target_image tag "qcow2" "image.toml")
 
-# Build an installer ISO (output/bootiso/install.iso) using iso.toml
+# Internal: build the INTERACTIVE installer ISO for one variant
+# Parameters: name (dank-ws|dank-ws-nvidia) target_image tag
+# Output: output/<name>/bootiso/install.iso (embeds target_image, so the install works offline)
+[private]
+_build-iso name target_image tag:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p "output/{{ name }}"
+    sudo rm -rf "output/{{ name }}/bootiso"
+    # iso.toml is a template: @IMAGE@ is the GHCR image the installed system is switched to
+    sed "s|@IMAGE@|ghcr.io/{{ iso_owner }}/{{ name }}:latest|" iso.toml > "output/{{ name }}/iso.toml"
+    sudo podman run \
+        --rm --privileged --pull=newer --net=host \
+        --security-opt label=type:unconfined_t \
+        -v "$(pwd)/output/{{ name }}/iso.toml":/config.toml:ro \
+        -v "$(pwd)/output/{{ name }}":/output \
+        -v /var/lib/containers/storage:/var/lib/containers/storage \
+        "{{ bib_image }}" \
+        --type anaconda-iso \
+        --use-librepo=True \
+        "{{ target_image }}:{{ tag }}"
+    sudo chown -R "$USER:$USER" output
+    ls -lh "output/{{ name }}/bootiso/install.iso"
+
+# Build the interactive installer ISO for dank-ws (output/dank-ws/bootiso/install.iso)
 [group('Build Virtual Machine Image')]
-build-iso target_image=("localhost/" + image_name) tag=default_tag: (build target_image tag) (_build-bib target_image tag "anaconda-iso" "iso.toml")
+build-iso target_image=("localhost/" + image_name) tag=default_tag: (build target_image tag) (_build-iso image_name target_image tag)
+
+# Build the interactive installer ISO for dank-ws-nvidia (output/dank-ws-nvidia/bootiso/install.iso)
+[group('Build Virtual Machine Image')]
+build-iso-nvidia target_image=("localhost/" + nvidia_image_name) tag=default_tag: (build-nvidia target_image tag) (_build-iso nvidia_image_name target_image tag)
 
 # Remove build output
 [group('Build')]

@@ -19,14 +19,26 @@ left on disk but disabled (`enabled=0`) after install, so updates come from rebu
 **Hyprland is intentionally not included**: `kmf/dank-ws-copr` ships a rebuilt `lua` 5.5 for it,
 which conflicts with el10's stock `lua-libs` 5.4 (needed by `wireplumber-libs`, `ibus-libpinyin`).
 
+## Image variants
+
+One `Containerfile` builds two images (selected by `--build-arg ENABLE_NVIDIA=0|1`):
+
+| Image | Contents |
+|---|---|
+| `ghcr.io/<owner>/dank-ws` | Everything above + multimedia codecs + extra firmware |
+| `ghcr.io/<owner>/dank-ws-nvidia` | `dank-ws` + proprietary NVIDIA driver (open kernel modules) - see [NVIDIA variant](#nvidia-variant-dank-ws-nvidia) |
+
+Each variant will get its own install ISO later; there is no ISO work for the NVIDIA variant yet.
+
 ## Layout
 
 | Path | Purpose |
 |---|---|
-| `Containerfile` | The image (`ARG BASE_TAG` selects the `centos-bootc` tag, default `c10s`) |
+| `Containerfile` | The image (`ARG BASE_TAG` selects the `centos-bootc` tag, default `c10s`; `ARG ENABLE_NVIDIA` selects the variant) |
+| `build/` | `nvidia.sh` (kernel swap + NVIDIA driver, only run when `ENABLE_NVIDIA=1`) and `nvidia_files/` (Secure Boot key enrollment helper) |
 | `system_files/` | Copied into `/`: greetd config, greeter + `docker` group sysusers/tmpfiles, `flatpak-preinstall.service`, Bazaar preinstall list |
-| `.github/workflows/build.yml` | Build, push to GHCR, sign with cosign (weekly + on push to `main`) |
-| `Justfile` | `build`, `build-qcow2`, `build-iso`, `check`, `clean` |
+| `.github/workflows/build.yml` | Matrix-build both images, push to GHCR, sign with cosign (weekly + on push to `main`) |
+| `Justfile` | `build`, `build-nvidia`, `build-qcow2`, `build-qcow2-nvidia`, `build-iso`, `check`, `clean` |
 | `image.toml` / `iso.toml` | bootc-image-builder configs (VM disk / installer ISO) |
 
 ## Extra components
@@ -67,6 +79,33 @@ Installed from the `atim/starship` COPR. `/etc/profile.d/starship.sh` initialise
 bash/zsh (skipped for `TERM=dumb`/`linux` and when `~/.config/no-starship` exists). Without a
 `~/.config/starship.toml` the system default `/etc/starship.toml` (no Nerd Font glyphs required) is used.
 
+### Multimedia codecs (both images)
+From [negativo17's `epel-multimedia`](https://negativo17.org/) repo (the same source as bluefin-lts), installed
+and then left disabled: `ffmpeg`, `libavcodec`, the `@multimedia` group, `gstreamer1-plugins-ugly`,
+`gstreamer1-plugin-libav`, `openh264`, `x264-libs`, `x265-libs`, `lame`, `libjxl`, `ffmpegthumbnailer`,
+`libva-utils` and `libva-intel-media-driver`. There is no `mesa-freeworld` equivalent on EL10.
+
+### Extra firmware (both images)
+`linux-firmware` and its sub-packages are already in the base image; the build adds `alsa-sof-firmware`,
+`alsa-firmware`, `intel-vsc-firmware`, `iwlwifi-dvm/mvm-firmware`, `iwlegacy-firmware`, `libertas-firmware`,
+`qcom-firmware`, `microcode_ctl` and `fwupd`.
+
+### NVIDIA variant (`dank-ws-nvidia`)
+Follows bluefin-lts' GDX build (`build/nvidia.sh`): the kernel is swapped for the one from
+`ghcr.io/ublue-os/akmods-nvidia-open:centos-10` and version-locked, the prebuilt `kmod-nvidia` plus
+negativo17's `nvidia-driver`, `nvidia-driver-cuda`, `nvidia-settings`, `libnvidia-fbc`,
+`nvidia-container-toolkit` and `libva-nvidia-driver` are installed, nouveau is blacklisted, the kargs
+`nvidia-drm.modeset=1 modprobe.blacklist=nouveau rd.driver.blacklist=nouveau` are set via
+`/usr/lib/bootc/kargs.d/00-nvidia.toml`, and the initramfs is rebuilt with the driver forced in.
+
+- **Supported GPUs:** the *open* kernel modules (`nvidia-open`) support **GeForce GTX 16-series / RTX
+  (Turing) and newer only**. Older cards (Pascal and earlier, e.g. GTX 10-series) are not supported by this image.
+- **Secure Boot:** the modules are signed with the ublue-os akmods key, which must be enrolled once.
+  The cert is shipped at `/etc/pki/akmods/certs/akmods-ublue.der`. Run `dank-ws-enroll-mok` (wraps
+  `mokutil --import /etc/pki/akmods/certs/akmods-ublue.der`), set a one-time password, reboot, and choose
+  *Enroll MOK* in the blue screen. A login-shell hint reminds you while Secure Boot is on and the key is not enrolled.
+- The kernel is pinned to the akmods build, so kernel updates arrive with image rebuilds only.
+
 ## Per-user setup (runtime, NOT at image build time)
 
 `dms setup headless` writes into `$HOME` (niri config + DMS integration), so it is run once per
@@ -91,11 +130,11 @@ systemctl --user enable --now dms
    ```
 3. **Publish**: push this repo to GitHub (default branch `main`). The workflow builds on push,
    weekly (Sundays 05:00 UTC) and on manual dispatch, pushes
-   `ghcr.io/<owner>/dank-ws:latest` (+ a `YYYYMMDD` tag) and signs the digest. Pull requests build only.
+   `ghcr.io/<owner>/dank-ws:latest` and `ghcr.io/<owner>/dank-ws-nvidia:latest` (+ a `YYYYMMDD` tag each, matrix build) and signs the digests. Pull requests build only.
    After the first push, make the GHCR package public if you want to pull it without credentials.
 4. **Switch a host** (any existing bootc system, e.g. CentOS Stream 10 bootc, Fedora bootc, Bluefin LTS):
    ```bash
-   sudo bootc switch ghcr.io/<owner>/dank-ws:latest
+   sudo bootc switch ghcr.io/<owner>/dank-ws:latest         # or dank-ws-nvidia:latest
    sudo systemctl reboot
    ```
    `<owner>` must be lowercase.
@@ -112,6 +151,7 @@ and a `sigstoreSigned` entry for `ghcr.io/<owner>/dank-ws` in `/etc/containers/p
 
 ```bash
 just build            # sudo podman build -> localhost/dank-ws:latest
+just build-nvidia     # NVIDIA variant -> localhost/dank-ws-nvidia:latest
 just build-qcow2      # output/qcow2/disk.qcow2 via bootc-image-builder + image.toml
 just build-iso        # output/bootiso/install.iso via iso.toml
 ```

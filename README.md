@@ -121,8 +121,11 @@ Before building images, edit the placeholder user/password in `image.toml`, and 
 
 ## Status / caveats
 
-- The image builds with podman on CentOS Stream 10 and passes `bootc container lint --fatal-warnings`;
-  it has not yet been booted/tested on hardware or in a VM.
+- The image builds with podman on CentOS Stream 10 and passes `bootc container lint --fatal-warnings`.
+  It boots in QEMU/UEFI to the dms-greeter login screen **when the VM has 3D acceleration**
+  (virtio-gpu with virgl). niri refuses software-only EGL renderers (llvmpipe/`kms_swrast`), so on a
+  VM without 3D (e.g. the stock RHEL/CentOS `qemu-kvm`, which has no `virtio-vga-gl`) the greeter shows a
+  black screen although greetd, niri and quickshell are all running. Real GPUs are fine.
 - greetd/greeter details to verify on first boot: `getent passwd greeter`, `/var/cache/dms-greeter`
   ownership, `systemctl status greetd`. If the `greetd` package from `kmf/dank-ws-copr` uses a
   different default user (its spec rewrites `greeter` to `greetd`), keep `user =` in

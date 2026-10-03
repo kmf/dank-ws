@@ -41,13 +41,16 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y copr disable kmf/dank-ws-copr && \
     dnf -y copr disable yalter/niri && \
     dnf clean all && \
-    find /var -mindepth 1 -delete
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy
 
 # Config files (greetd config, greeter user/cache dir). Copied AFTER the
 # package install so our /etc/greetd/config.toml wins over the packaged one.
 COPY system_files/ /
 
-RUN rm -rf /opt && ln -s /var/opt /opt
+# Build-time leftovers: /var/roothome/buildinfo ships in the base image and
+# /run/* is written by dnf; bootc lint flags both.
+RUN rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy && ln -s /var/opt /opt
 
 LABEL containers.bootc=1
 LABEL ostree.bootable=1

@@ -81,7 +81,7 @@ RUN --mount=type=tmpfs,dst=/var \
         linux-firmware alsa-sof-firmware alsa-firmware intel-vsc-firmware \
         iwlwifi-dvm-firmware iwlwifi-mvm-firmware iwlegacy-firmware \
         libertas-firmware qcom-firmware microcode_ctl fwupd && \
-    dnf -y install -x wsdd \
+    dnf -y install \
         NetworkManager-wifi xdg-user-dirs tuned tuned-ppd nautilus \
         vim-enhanced tmux htop btop fastfetch unzip zip \
         google-noto-sans-fonts google-noto-emoji-fonts jetbrains-mono-fonts-all && \

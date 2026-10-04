@@ -81,7 +81,7 @@ RUN --mount=type=tmpfs,dst=/var \
         linux-firmware alsa-sof-firmware alsa-firmware intel-vsc-firmware \
         iwlwifi-dvm-firmware iwlwifi-mvm-firmware iwlegacy-firmware \
         libertas-firmware qcom-firmware microcode_ctl fwupd && \
-    dnf -y install \
+    dnf -y install -x wsdd \
         NetworkManager-wifi xdg-user-dirs tuned tuned-ppd nautilus \
         vim-enhanced tmux htop btop fastfetch unzip zip \
         google-noto-sans-fonts google-noto-emoji-fonts jetbrains-mono-fonts-all && \
@@ -164,7 +164,7 @@ RUN --mount=type=tmpfs,dst=/tmp \
 # Build-time leftovers: /var/roothome/buildinfo ships in the base image and
 # /run/* is written by dnf; bootc lint flags both.
 RUN systemctl enable flatpak-preinstall.service && \
-    rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy && ln -s /var/opt /opt
+    rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy /run/tuned && ln -s /var/opt /opt
 
 LABEL containers.bootc=1
 LABEL ostree.bootable=1

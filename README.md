@@ -145,16 +145,31 @@ Run it by hand with `sudo uupd` (`--dry-run` to preview; `--disable-module-brew|
 module). A pending OS update is staged and applied on the next reboot (`uupd --apply` reboots).
 `brew-update.timer`/`brew-upgrade.timer` from the Homebrew image stay enabled alongside it.
 
-## Per-user setup (runtime, NOT at image build time)
+## First login: DMS autostart, keybinds and default terminal
 
-`dms setup headless` writes into `$HOME` (niri config + DMS integration), so it is run once per
-user after first login, from a terminal:
+- **DMS starts by itself.** `dms.service` (the user unit shipped by the `dms` package) is enabled for every user
+  (`systemctl --global enable dms.service`); `niri-session` brings up `graphical-session.target`, which starts it.
+  Check with `systemctl --user status dms`.
+- **Keybinds and defaults come from the niri config.** `config.kdl` includes `dms/*.kdl` (DMS keybinds such as
+  `Mod+Space` launcher, `Mod+T` terminal = **kitty**, `Mod+V` clipboard, ...). It is generated at image build time
+  with `dms setup headless --compositor niri --terminal kitty` and shipped in `/etc/skel/.config` (new users, e.g.
+  the user created by the installer) and in `/etc/niri` (niri's system-wide fallback if a user has no
+  `~/.config/niri/config.kdl`). `alacritty` is excluded from the image; `/etc/xdg/xdg-terminals.list` names kitty.
+- `dms setup` is blocked on ostree/bootc systems by default; `/etc/dms/cli-policy.json` re-allows it (only
+  `dms greeter install|enable|uninstall` stay blocked, the greeter is baked into the image).
+
+**Existing users** (created before this config was in the image) already have a niri-generated
+`~/.config/niri/config.kdl` without the DMS includes. Back it up and adopt the image default:
 
 ```bash
-dms setup headless --compositor niri --terminal ghostty --no-systemd --skip-existing
-# optional: start DMS via systemd user service instead
-systemctl --user enable --now dms
+mv ~/.config/niri ~/.config/niri.bak-$(date +%F)
+cp -a /etc/skel/.config/niri ~/.config/niri
+mkdir -p ~/.config/kitty && cp -an /etc/skel/.config/kitty/. ~/.config/kitty/
+systemctl --user restart dms     # niri live-reloads the config on its own
 ```
+
+(Or `dms setup headless --compositor niri --terminal kitty --force`, which backs up the old config itself.)
+Do not add `--no-systemd`: that variant adds `spawn-at-startup "dms" "run"`, which would start DMS twice.
 
 ## Publish your own build
 

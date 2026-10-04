@@ -107,6 +107,34 @@ negativo17's `nvidia-driver`, `nvidia-driver-cuda`, `nvidia-settings`, `libnvidi
   *Enroll MOK* in the blue screen. A login-shell hint reminds you while Secure Boot is on and the key is not enrolled.
 - The kernel is pinned to the akmods build, so kernel updates arrive with image rebuilds only.
 
+### How updates flow (end to end)
+
+1. **GitHub Actions builds the images**: weekly (Sunday 05:00 UTC, picks up base image and COPR updates) and on every push to `main`.
+2. Each build is pushed to `ghcr.io/kmf/dank-ws` / `ghcr.io/kmf/dank-ws-nvidia` (`:latest` + a `YYYYMMDD` tag) and **signed with cosign** (`SIGNING_SECRET`).
+3. The laptop's **`uupd.timer`** (daily) pulls `:latest`, stages the new deployment, and updates Flatpaks and Homebrew too. **Reboot to apply** the staged OS update (`sudo uupd --apply` reboots for you).
+4. The installed system **only accepts signed images** for these two repositories (see below), so a tampered or unsigned image is rejected at pull time.
+
+```bash
+bootc status             # booted / staged / rollback images and digests
+sudo uupd                # update everything now (--dry-run to preview)
+sudo bootc upgrade       # OS image only (staged; reboot to apply)
+sudo bootc rollback      # boot the previous deployment on the next reboot
+```
+
+**Scheduled workflows get disabled by GitHub after 60 days without repository activity** (public repos). If that
+happens the weekly build silently stops: re-enable it on the repo's *Actions* tab (*Build and publish image* ->
+*Enable workflow*), or run `gh workflow enable build.yml -R kmf/dank-ws` and `gh workflow run build.yml -R kmf/dank-ws`.
+Any push to `main` also keeps it alive; check `gh run list -R kmf/dank-ws -w build.yml -L3` now and then.
+
+#### Signature enforcement (installed systems)
+`build/signing.sh` runs at image build time and ships, like Bluefin's `ublue-os-signing`:
+`/etc/pki/containers/dank-ws.pub` (this repo's `cosign.pub`), `/etc/containers/registries.d/dank-ws.yaml`
+(`use-sigstore-attachments: true` for `ghcr.io/kmf`) and `/etc/containers/policy.json` (the distro default
+plus `sigstoreSigned` entries for `ghcr.io/kmf/dank-ws` and `ghcr.io/kmf/dank-ws-nvidia`, `signedIdentity: matchRepository`).
+Other registries keep the distro default policy. Forks: build with `--build-arg IMAGE_VENDOR=<owner>` and your own `cosign.pub`.
+`bootc switch --enforce-container-sigpolicy` (used in `iso.toml`) makes bootc itself apply this policy.
+Verify manually: `cosign verify --key cosign.pub ghcr.io/kmf/dank-ws:latest`.
+
 ### Updates (uupd)
 [`uupd`](https://github.com/ublue-os/uupd) (Universal Blue's updater, from the `ublue-os/packages` COPR,
 enabled for the install only) updates the OS image (`bootc`), system Flatpaks and Homebrew
@@ -150,13 +178,9 @@ systemctl --user enable --now dms
    ```
    `<owner>` must be lowercase.
 
-### Optional: enforce signature verification on the installed system
+### Signature verification on the installed system
 
-Not enabled by default (the image would need your `cosign.pub` baked in). To enforce: add
-`cosign.pub` to the image at `/etc/pki/containers/dank-ws.pub`, add a
-`/etc/containers/registries.d/dank-ws.yaml` with `docker: {ghcr.io/<owner>/dank-ws: {use-sigstore-attachments: true}}`,
-and a `sigstoreSigned` entry for `ghcr.io/<owner>/dank-ws` in `/etc/containers/policy.json`; then add
-`--enforce-container-sigpolicy` to the `bootc switch` in `iso.toml`.
+Enabled by default in the image, see [Signature enforcement](#signature-enforcement-installed-systems).
 
 ## Local builds
 
@@ -178,8 +202,11 @@ Before building a VM image, edit the placeholder user/password in `image.toml`. 
 **embeds the image it was built from**, so installing works offline; the kickstart in `iso.toml` only adds a
 `%post` step that re-points the installed system at `ghcr.io/<owner>/<image>:latest` (`bootc switch
 --mutate-in-place`, no download) so `bootc upgrade` / `uupd` follow the published image from then on.
-That means the image must exist on GHCR (public) for updates to work; the switch does **not** enforce a
-signature policy (see [enforce signature verification](#optional-enforce-signature-verification-on-the-installed-system)).
+That means the image must exist on GHCR (public) for updates to work. The switch uses
+`--enforce-container-sigpolicy`, so later updates are verified against the cosign policy shipped in the image
+(see [Signature enforcement](#signature-enforcement-installed-systems)). An ISO only carries that policy if the
+image it embeds was built after the policy was added, so rebuild the ISOs after image changes you want installed
+fresh (updates after install pull the current image anyway).
 
 bootc-image-builder only injects the `ostreecontainer` kickstart command. Because `iso.toml` contains no
 `autopart`/`clearpart`/`user`/`text --non-interactive` lines, Anaconda asks for everything on the target

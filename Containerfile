@@ -99,7 +99,7 @@ RUN --mount=type=tmpfs,dst=/var \
     test -f /usr/lib/systemd/user/dms.service && \
     systemctl --global enable dms.service && \
     systemctl enable brew-setup.service brew-update.timer brew-upgrade.timer && \
-    systemctl enable docker.service containerd.service dank-ws-docker-group.service && \
+    systemctl enable docker.service containerd.service && \
     dnf -y --setopt=retries=5 install uupd && \
     uupd --help 2>&1 | grep -- '--disable-module-distrobox' && \
     sed -i '/^ExecStart=/ s|uupd|& --disable-module-distrobox|' /usr/lib/systemd/system/uupd.service && \
@@ -163,7 +163,7 @@ RUN --mount=type=tmpfs,dst=/tmp \
 
 # Build-time leftovers: /var/roothome/buildinfo ships in the base image and
 # /run/* is written by dnf; bootc lint flags both.
-RUN systemctl enable flatpak-preinstall.service && \
+RUN systemctl enable flatpak-preinstall.service dank-ws-docker-group.service && \
     rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy /run/tuned && ln -s /var/opt /opt
 
 LABEL containers.bootc=1

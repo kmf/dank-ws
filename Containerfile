@@ -57,7 +57,7 @@ RUN --mount=type=tmpfs,dst=/var \
         https://download.docker.com/linux/centos/docker-ce.repo && \
     dnf -y install \
         quickshell-git matugen cliphist danksearch dgop dankcalendar-git \
-        dms niri ghostty kitty dms-greeter cava kf6-kimageformats && \
+        -x alacritty dms niri ghostty kitty dms-greeter cava kf6-kimageformats && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \
     dnf -y install brave-origin && \
     rpm -ql brave-origin | head -40 && \
@@ -89,6 +89,8 @@ RUN --mount=type=tmpfs,dst=/var \
           systemctl disable gdm.service; \
       fi ) && \
     systemctl enable greetd.service && \
+    test -f /usr/lib/systemd/user/dms.service && \
+    systemctl --global enable dms.service && \
     systemctl enable brew-setup.service brew-update.timer brew-upgrade.timer && \
     systemctl enable docker.service containerd.service && \
     dnf -y --setopt=retries=5 install uupd && \
@@ -131,6 +133,26 @@ COPY system_files/ /
 COPY cosign.pub /etc/pki/containers/dank-ws.pub
 RUN --mount=type=bind,src=build,dst=/run/build \
     /run/build/signing.sh "ghcr.io/${IMAGE_VENDOR}" dank-ws dank-ws-nvidia
+
+# Default niri + DMS config. Generated with the same command users would run
+# (`dms setup headless`; it refuses to run as root, hence `nobody`) so it always matches the
+# installed dms version: config.kdl with the dms/*.kdl includes (keybinds: Mod+T = kitty,
+# Mod+Space = DMS launcher, ...), plus the kitty config. It is used
+#   - as /etc/skel/.config for NEW users (the installer's user, `useradd -m`), and
+#   - as /etc/niri (niri's system-wide fallback when ~/.config/niri/config.kdl does not exist;
+#     without it niri writes its own default which has no DMS keybinds and spawns waybar).
+# /etc/dms/cli-policy.json (shipped above) unblocks `dms setup`, which dms otherwise disables
+# on ostree/bootc systems.
+RUN --mount=type=tmpfs,dst=/tmp \
+    install -d -o nobody -g nobody /tmp/skel-home && \
+    runuser -u nobody -- env HOME=/tmp/skel-home dms setup headless --compositor niri --terminal kitty && \
+    grep -q 'include optional=true "dms/binds.kdl"' /tmp/skel-home/.config/niri/config.kdl && \
+    grep -q '"kitty"' /tmp/skel-home/.config/niri/dms/binds.kdl && \
+    niri validate -c /tmp/skel-home/.config/niri/config.kdl && \
+    install -d /etc/skel/.config /etc/niri && \
+    cp -a /tmp/skel-home/.config/. /etc/skel/.config/ && \
+    cp -a /tmp/skel-home/.config/niri/. /etc/niri/ && \
+    find /etc/skel/.config /etc/niri -type f
 
 # Build-time leftovers: /var/roothome/buildinfo ships in the base image and
 # /run/* is written by dnf; bootc lint flags both.

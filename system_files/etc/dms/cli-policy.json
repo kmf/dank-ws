@@ -1,0 +1,9 @@
+{
+  "policy_version": 1,
+  "blocked_commands": [
+    "greeter install",
+    "greeter enable",
+    "greeter uninstall"
+  ],
+  "message": "This command changes system files, which are baked into the dank-ws image. Change the image instead."
+}

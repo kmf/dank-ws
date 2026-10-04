@@ -1,0 +1,12 @@
+#!/bin/bash
+# Add the primary human user (UID 1000, created by the installer) to the
+# docker group so `docker` works without sudo. Idempotent; runs every boot.
+set -eu
+user=$(getent passwd 1000 | cut -d: -f1 || true)
+[ -n "$user" ] || exit 0
+getent group docker >/dev/null || exit 0
+if id -nG "$user" | tr ' ' '\n' | grep -qx docker; then
+    exit 0
+fi
+usermod -aG docker "$user"
+echo "added $user to the docker group (log out and back in to apply)"

@@ -70,8 +70,10 @@ Docker's CentOS repo; `docker.service` and `containerd.service` are enabled.
 
 - **Licensing:** Docker Engine (Moby) is Apache-2.0 and free to use. Docker Desktop has separate
   (paid for larger companies) terms and is **not** included. This is the published licensing, not legal advice.
-- **Group:** the `docker` group exists (sysusers) but no one is added. Adding a user
-  (`sudo usermod -aG docker $USER`) grants **root-equivalent** access to the host.
+- **Group:** the `docker` group exists (sysusers) and `dank-ws-docker-group.service`
+  adds the first user (UID 1000, created by the installer) to it on boot (idempotent;
+  log out and back in to apply). Membership is **root-equivalent** access to the host;
+  other users need `sudo usermod -aG docker <user>`.
 - **Conflicts:** `podman-docker` conflicts with `docker-ce`; do not layer it. Use `podman` directly, or
   Docker, not the compat shim alongside.
 

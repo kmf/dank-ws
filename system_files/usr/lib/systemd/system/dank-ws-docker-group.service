@@ -1,0 +1,12 @@
+[Unit]
+Description=Add the first user (UID 1000) to the docker group
+After=systemd-sysusers.service local-fs.target
+Before=systemd-user-sessions.service docker.socket docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/dank-ws-docker-group
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

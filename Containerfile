@@ -99,7 +99,7 @@ RUN --mount=type=tmpfs,dst=/var \
     test -f /usr/lib/systemd/user/dms.service && \
     systemctl --global enable dms.service && \
     systemctl enable brew-setup.service brew-update.timer brew-upgrade.timer && \
-    systemctl enable docker.service containerd.service && \
+    systemctl enable docker.service containerd.service dank-ws-docker-group.service && \
     dnf -y --setopt=retries=5 install uupd && \
     uupd --help 2>&1 | grep -- '--disable-module-distrobox' && \
     sed -i '/^ExecStart=/ s|uupd|& --disable-module-distrobox|' /usr/lib/systemd/system/uupd.service && \

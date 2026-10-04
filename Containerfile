@@ -81,6 +81,13 @@ RUN --mount=type=tmpfs,dst=/var \
         linux-firmware alsa-sof-firmware alsa-firmware intel-vsc-firmware \
         iwlwifi-dvm-firmware iwlwifi-mvm-firmware iwlegacy-firmware \
         libertas-firmware qcom-firmware microcode_ctl fwupd && \
+    dnf -y install \
+        NetworkManager-wifi xdg-user-dirs tuned tuned-ppd nautilus \
+        vim-enhanced tmux htop btop fastfetch unzip zip \
+        google-noto-sans-fonts google-noto-emoji-fonts jetbrains-mono-fonts-all && \
+    test -f /usr/lib/systemd/system/tuned.service && \
+    test -f /usr/lib/systemd/system/tuned-ppd.service && \
+    systemctl enable tuned.service tuned-ppd.service && \
     mkdir -p /etc/flatpak/remotes.d && \
     curl -fsSL --retry 3 -o /etc/flatpak/remotes.d/flathub.flatpakrepo \
         https://dl.flathub.org/repo/flathub.flatpakrepo && \

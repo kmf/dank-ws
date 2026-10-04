@@ -10,10 +10,12 @@
 #
 # After install, %post re-points the system at the published GHCR image so it keeps
 # receiving updates (bootc/uupd) instead of staying on the embedded copy.
+# --enforce-container-sigpolicy makes bootc verify future pulls against the cosign policy
+# shipped in the image (/etc/containers/policy.json, see build/signing.sh).
 [customizations.installer.kickstart]
 contents = """
 %post
-bootc switch --mutate-in-place --transport registry @IMAGE@
+bootc switch --mutate-in-place --transport registry --enforce-container-sigpolicy @IMAGE@
 %end
 """
 

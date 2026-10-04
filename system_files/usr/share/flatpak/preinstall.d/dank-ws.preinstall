@@ -4,3 +4,19 @@
 # Bazaar: Flathub app store
 [Flatpak Preinstall io.github.kolunmi.Bazaar]
 Branch=stable
+
+# Basic desktop apps (GNOME apps use the GNOME runtime Bazaar already pulls in)
+[Flatpak Preinstall org.gnome.TextEditor]
+Branch=stable
+
+[Flatpak Preinstall org.gnome.Loupe]
+Branch=stable
+
+[Flatpak Preinstall org.gnome.Papers]
+Branch=stable
+
+[Flatpak Preinstall org.gnome.Showtime]
+Branch=stable
+
+[Flatpak Preinstall org.gnome.Calculator]
+Branch=stable

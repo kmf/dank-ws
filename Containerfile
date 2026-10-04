@@ -126,6 +126,12 @@ RUN --mount=type=tmpfs,dst=/var \
 # package install so our /etc/greetd/config.toml wins over the packaged one.
 COPY system_files/ /
 
+# Signature enforcement: installed systems only accept our images when they carry a valid
+# cosign signature (public key = cosign.pub, signed by the CI workflow). See build/signing.sh.
+COPY cosign.pub /etc/pki/containers/dank-ws.pub
+RUN --mount=type=bind,src=build,dst=/run/build \
+    /run/build/signing.sh "ghcr.io/${IMAGE_VENDOR}" dank-ws dank-ws-nvidia
+
 # Build-time leftovers: /var/roothome/buildinfo ships in the base image and
 # /run/* is written by dnf; bootc lint flags both.
 RUN systemctl enable flatpak-preinstall.service && \

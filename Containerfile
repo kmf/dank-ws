@@ -124,8 +124,9 @@ RUN --mount=type=tmpfs,dst=/var \
 
 # DankMaterialShell stack: everything from the avengemedia COPRs, in its own late layer
 # AFTER the heavy package/firmware/codec/NVIDIA layers, so a DMS bump only touches this
-# step. CI rechunks the image by package (rpm-ostree build-chunked-oci), which keeps
-# these packages in their own chunks too.
+# step. CI rechunks the image (rpm-ostree build-chunked-oci); the files of dms, quickshell-git,
+# matugen, cliphist and dgop are tagged with the user.component xattr so each of them gets a
+# dedicated layer instead of being packed into shared size-balanced chunks.
 RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/boot \
@@ -135,6 +136,13 @@ RUN --mount=type=tmpfs,dst=/var \
         quickshell-git matugen cliphist danksearch dgop dankcalendar-git dms dms-greeter && \
     systemctl enable greetd.service && \
     test -f /usr/lib/systemd/user/dms.service && \
+    rpm -q attr >/dev/null || dnf -y install attr && \
+    for pkg in dms quickshell-git matugen cliphist dgop; do \
+        rpm -ql "$pkg" | while read -r f; do \
+            if [ -f "$f" ] && [ ! -L "$f" ]; then setfattr -n user.component -v "$pkg" "$f"; fi; \
+        done; \
+        test -n "$(getfattr --absolute-names -n user.component --only-values "$(rpm -ql "$pkg" | while read -r f; do [ -f "$f" ] && [ ! -L "$f" ] && echo "$f" && break; done)")"; \
+    done && \
     systemctl --global enable dms.service && \
     dnf -y copr disable avengemedia/danklinux && \
     dnf -y copr disable avengemedia/dms-git && \

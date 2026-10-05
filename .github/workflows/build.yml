@@ -69,7 +69,22 @@ jobs:
             --build-arg IMAGE_SOURCE="${{ github.server_url }}/${{ github.repository }}" \
             --tag "${IMAGE_REF}:${DEFAULT_TAG}" \
             -f Containerfile .
+
+      - name: Rechunk image by package
+        # Re-split the image into content-addressed chunks grouped by package (as Bluefin does),
+        # so unchanged packages keep identical layer digests across fresh, cache-less CI builds
+        # and an update only downloads the chunks whose packages changed (e.g. the avengemedia
+        # COPR / DMS stack gets its own chunks).
+        run: |
+          sudo podman run --rm --privileged \
+            -v /var/lib/containers:/var/lib/containers \
+            --entrypoint /usr/bin/rpm-ostree \
+            "${IMAGE_REF}:${DEFAULT_TAG}" \
+            compose build-chunked-oci --bootc --format-version=1 --max-layers 96 \
+            --from "${IMAGE_REF}:${DEFAULT_TAG}" \
+            --output "containers-storage:${IMAGE_REF}:${DEFAULT_TAG}"
           sudo podman tag "${IMAGE_REF}:${DEFAULT_TAG}" "${IMAGE_REF}:${BUILD_DATE}"
+          sudo podman image inspect "${IMAGE_REF}:${DEFAULT_TAG}" --format '{{len .RootFS.Layers}} layers'
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'

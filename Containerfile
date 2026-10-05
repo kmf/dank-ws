@@ -45,8 +45,6 @@ RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/boot \
     dnf -y install epel-release dnf-plugins-core && \
     dnf config-manager --set-enabled crb && \
-    dnf -y copr enable avengemedia/danklinux && \
-    dnf -y copr enable avengemedia/dms-git && \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
     dnf -y copr enable atim/starship && \
@@ -55,9 +53,7 @@ RUN --mount=type=tmpfs,dst=/var \
         https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/docker-ce.repo \
         https://download.docker.com/linux/centos/docker-ce.repo && \
-    dnf -y install \
-        quickshell-git matugen cliphist danksearch dgop dankcalendar-git \
-        -x alacritty dms niri ghostty kitty dms-greeter cava kf6-kimageformats && \
+    dnf -y install -x alacritty niri ghostty kitty greetd cava kf6-kimageformats && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \
     dnf -y install brave-origin && \
     rpm -ql brave-origin | head -40 && \
@@ -95,9 +91,6 @@ RUN --mount=type=tmpfs,dst=/var \
     ( if systemctl list-unit-files gdm.service 2>/dev/null | grep -q '^gdm.service'; then \
           systemctl disable gdm.service; \
       fi ) && \
-    systemctl enable greetd.service && \
-    test -f /usr/lib/systemd/user/dms.service && \
-    systemctl --global enable dms.service && \
     systemctl enable brew-setup.service brew-update.timer brew-upgrade.timer && \
     systemctl enable docker.service containerd.service && \
     dnf -y --setopt=retries=5 install uupd && \
@@ -106,8 +99,6 @@ RUN --mount=type=tmpfs,dst=/var \
     grep -n '^ExecStart' /usr/lib/systemd/system/uupd.service && \
     systemctl enable uupd.timer && \
     systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service && \
-    dnf -y copr disable avengemedia/danklinux && \
-    dnf -y copr disable avengemedia/dms-git && \
     dnf -y copr disable kmf/dank-ws-copr && \
     dnf -y copr disable yalter/niri && \
     dnf -y copr disable atim/starship && \
@@ -130,6 +121,26 @@ RUN --mount=type=tmpfs,dst=/var \
         dnf clean all && find /var -mindepth 1 -delete && \
         rm -rf /run/rhsm /run/selinux-policy; \
     fi
+
+# DankMaterialShell stack: everything from the avengemedia COPRs, in its own late layer
+# AFTER the heavy package/firmware/codec/NVIDIA layers, so a DMS bump only touches this
+# step. CI rechunks the image by package (rpm-ostree build-chunked-oci), which keeps
+# these packages in their own chunks too.
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    dnf -y copr enable avengemedia/danklinux && \
+    dnf -y copr enable avengemedia/dms-git && \
+    dnf -y install --enablerepo=epel \
+        quickshell-git matugen cliphist danksearch dgop dankcalendar-git dms dms-greeter && \
+    systemctl enable greetd.service && \
+    test -f /usr/lib/systemd/user/dms.service && \
+    systemctl --global enable dms.service && \
+    dnf -y copr disable avengemedia/danklinux && \
+    dnf -y copr disable avengemedia/dms-git && \
+    dnf clean all && \
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy
 
 # Config files (greetd config, greeter user/cache dir). Copied AFTER the
 # package install so our /etc/greetd/config.toml wins over the packaged one.

@@ -1,6 +1,7 @@
 export image_name := env("IMAGE_NAME", "dank-ws")
 export base_tag := env("BASE_TAG", "c10s")
 export default_tag := env("DEFAULT_TAG", "latest")
+export dms_channel := env("DMS_CHANNEL", "rolling")
 export nvidia_image_name := env("NVIDIA_IMAGE_NAME", "dank-ws-nvidia")
 export akmods_nvidia_image := env("AKMODS_NVIDIA_IMAGE", "ghcr.io/ublue-os/akmods-nvidia-open:centos-10")
 export iso_owner := env("ISO_OWNER", "kmf")
@@ -28,6 +29,7 @@ build target_image=("localhost/" + image_name) tag=default_tag:
     sudo podman build \
         --pull=newer \
         --build-arg BASE_TAG="{{ base_tag }}" \
+        --build-arg DMS_CHANNEL="{{ dms_channel }}" \
         --build-arg IMAGE_NAME="{{ image_name }}" \
         --tag "{{ target_image }}:{{ tag }}" \
         -f Containerfile .
@@ -43,6 +45,7 @@ build-nvidia target_image=("localhost/" + nvidia_image_name) tag=default_tag:
     sudo podman build \
         --pull=newer \
         --build-arg BASE_TAG="{{ base_tag }}" \
+        --build-arg DMS_CHANNEL="{{ dms_channel }}" \
         --build-arg IMAGE_NAME="{{ nvidia_image_name }}" \
         --build-arg ENABLE_NVIDIA=1 \
         --build-arg AKMODS_NVIDIA_IMAGE="{{ akmods_nvidia_image }}" \

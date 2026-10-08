@@ -124,20 +124,36 @@ RUN --mount=type=tmpfs,dst=/var \
 
 # DankMaterialShell stack: everything from the avengemedia COPRs, in its own late layer
 # AFTER the heavy package/firmware/codec/NVIDIA layers, so a DMS bump only touches this
-# step. CI rechunks the image (rpm-ostree build-chunked-oci); the files of dms, quickshell-git,
-# matugen, cliphist and dgop are tagged with the user.component xattr so each of them gets a
-# dedicated layer instead of being packed into shared size-balanced chunks.
+# step. CI rechunks the image (rpm-ostree build-chunked-oci); the files of the DMS packages
+# are tagged with the user.component xattr so each of them gets a dedicated layer instead of
+# being packed into shared size-balanced chunks.
+#
+# DMS_CHANNEL picks the upstream DMS COPR (published as separate image tags, see README):
+#   stable   avengemedia/dms      tagged DMS releases + quickshell
+#   rolling  avengemedia/dms-git  DMS git snapshots + quickshell-git   (:latest follows this)
+# Everything above this step is identical for both channels, so with a shared build cache both
+# channels share every layer except the DMS ones. Unpackaged files this step (and the
+# `dms setup` step below) writes, e.g. the rpmdb, /etc/passwd and the COPR .repo files, are
+# tagged too, so they don't make the big shared "unpackaged content + initramfs" layer differ.
+ARG DMS_CHANNEL="rolling"
 RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/boot \
+    touch /tmp/dms-step-start && \
+    case "${DMS_CHANNEL}" in \
+        stable)  DMS_COPR=avengemedia/dms;     QUICKSHELL=quickshell ;; \
+        rolling) DMS_COPR=avengemedia/dms-git; QUICKSHELL=quickshell-git ;; \
+        *) echo "DMS_CHANNEL must be stable or rolling, got '${DMS_CHANNEL}'" >&2; exit 1 ;; \
+    esac && \
     dnf -y copr enable avengemedia/danklinux && \
-    dnf -y copr enable avengemedia/dms-git && \
+    dnf -y copr enable "${DMS_COPR}" && \
     dnf -y install --enablerepo=epel \
-        quickshell-git matugen cliphist danksearch dgop dankcalendar-git dms dms-greeter && \
+        "${QUICKSHELL}" matugen cliphist danksearch dgop dankcalendar-git dms dms-greeter && \
+    rpm -q dms dms-cli "${QUICKSHELL}" && \
     systemctl enable greetd.service && \
     test -f /usr/lib/systemd/user/dms.service && \
-    rpm -q attr >/dev/null || dnf -y install attr && \
-    for pkg in dms quickshell-git matugen cliphist dgop; do \
+    { rpm -q attr >/dev/null || dnf -y install attr; } && \
+    for pkg in dms dms-cli "${QUICKSHELL}" matugen cliphist dgop; do \
         rpm -ql "$pkg" | while read -r f; do \
             if [ -f "$f" ] && [ ! -L "$f" ]; then setfattr -n user.component -v "$pkg" "$f"; fi; \
         done; \
@@ -145,8 +161,12 @@ RUN --mount=type=tmpfs,dst=/var \
     done && \
     systemctl --global enable dms.service && \
     dnf -y copr disable avengemedia/danklinux && \
-    dnf -y copr disable avengemedia/dms-git && \
+    dnf -y copr disable "${DMS_COPR}" && \
     dnf clean all && \
+    find /usr /etc -xdev -type f -newer /tmp/dms-step-start -print0 | \
+        xargs -0 -r sh -c 'for f; do getfattr -n user.component "$f" >/dev/null 2>&1 || \
+            { setfattr -n user.component -v dms-state "$f" && echo "dms-state: $f"; }; done' sh && \
+    getfattr -n user.component --only-values /usr/lib/sysimage/rpm/rpmdb.sqlite | grep -qx dms-state && \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 
@@ -178,6 +198,7 @@ RUN --mount=type=tmpfs,dst=/tmp \
     install -d /etc/skel/.config /etc/niri && \
     cp -a /tmp/skel-home/.config/. /etc/skel/.config/ && \
     cp -a /tmp/skel-home/.config/niri/. /etc/niri/ && \
+    find /etc/skel/.config /etc/niri -type f ! -type l -exec setfattr -n user.component -v dms-config {} + && \
     find /etc/skel/.config /etc/niri -type f
 
 # Build-time leftovers: /var/roothome/buildinfo ships in the base image and
@@ -191,5 +212,6 @@ LABEL org.opencontainers.image.title="${IMAGE_NAME}"
 LABEL org.opencontainers.image.vendor="${IMAGE_VENDOR}"
 LABEL org.opencontainers.image.description="CentOS Stream 10 bootc image with niri, DankMaterialShell, ghostty and kitty (nvidia variant: ENABLE_NVIDIA=${ENABLE_NVIDIA})"
 LABEL org.opencontainers.image.source="${IMAGE_SOURCE}"
+LABEL io.github.kmf.dank-ws.dms-channel="${DMS_CHANNEL}"
 
 RUN bootc container lint --fatal-warnings

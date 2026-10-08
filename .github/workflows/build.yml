@@ -14,6 +14,11 @@ on:
 
 env:
   BASE_TAG: c10s
+  # DMS channels (see README "Choosing a DMS channel"). Each job builds both, sharing one build
+  # cache so every layer below the DMS step is byte-identical between :stable and :rolling.
+  DMS_CHANNELS: stable rolling
+  # :latest (and the plain date tag) follow this channel; it is what the image always used.
+  DEFAULT_CHANNEL: rolling
   DEFAULT_TAG: latest
 
 concurrency:
@@ -58,33 +63,51 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Build image
+      - name: Build image (both DMS channels)
         run: |
-          sudo podman build \
-            --pull=newer \
-            --build-arg BASE_TAG="${BASE_TAG}" \
-            --build-arg IMAGE_NAME="${IMAGE_NAME}" \
-            --build-arg ENABLE_NVIDIA="${ENABLE_NVIDIA}" \
-            --build-arg AKMODS_NVIDIA_IMAGE="${AKMODS_NVIDIA_IMAGE}" \
-            --build-arg IMAGE_SOURCE="${{ github.server_url }}/${{ github.repository }}" \
-            --tag "${IMAGE_REF}:${DEFAULT_TAG}" \
-            -f Containerfile .
+          for channel in ${DMS_CHANNELS}; do
+            echo "::group::Build ${IMAGE_NAME} (DMS ${channel})"
+            sudo podman build \
+              --pull=newer \
+              --layers \
+              --build-arg BASE_TAG="${BASE_TAG}" \
+              --build-arg IMAGE_NAME="${IMAGE_NAME}" \
+              --build-arg ENABLE_NVIDIA="${ENABLE_NVIDIA}" \
+              --build-arg AKMODS_NVIDIA_IMAGE="${AKMODS_NVIDIA_IMAGE}" \
+              --build-arg DMS_CHANNEL="${channel}" \
+              --build-arg IMAGE_SOURCE="${{ github.server_url }}/${{ github.repository }}" \
+              --tag "${IMAGE_REF}:${channel}" \
+              -f Containerfile .
+            echo "::endgroup::"
+          done
 
       - name: Rechunk image by package
         # Re-split the image into content-addressed chunks grouped by package (as Bluefin does),
         # so unchanged packages keep identical layer digests across fresh, cache-less CI builds
         # and an update only downloads the chunks whose packages changed (e.g. the avengemedia
-        # COPR / DMS stack gets its own chunks).
+        # COPR / DMS stack gets its own chunks). Both channels are built from the same cached
+        # lower layers, so switching :stable <-> :rolling only downloads the DMS chunks.
         run: |
-          sudo podman run --rm --privileged \
-            -v /var/lib/containers:/var/lib/containers \
-            --entrypoint /usr/bin/rpm-ostree \
-            "${IMAGE_REF}:${DEFAULT_TAG}" \
-            compose build-chunked-oci --bootc --format-version=1 --max-layers 96 \
-            --from "${IMAGE_REF}:${DEFAULT_TAG}" \
-            --output "containers-storage:${IMAGE_REF}:${DEFAULT_TAG}"
-          sudo podman tag "${IMAGE_REF}:${DEFAULT_TAG}" "${IMAGE_REF}:${BUILD_DATE}"
-          sudo podman image inspect "${IMAGE_REF}:${DEFAULT_TAG}" --format '{{len .RootFS.Layers}} layers'
+          for channel in ${DMS_CHANNELS}; do
+            sudo podman run --rm --privileged \
+              -v /var/lib/containers:/var/lib/containers \
+              --entrypoint /usr/bin/rpm-ostree \
+              "${IMAGE_REF}:${channel}" \
+              compose build-chunked-oci --bootc --format-version=1 --max-layers 96 \
+              --from "${IMAGE_REF}:${channel}" \
+              --output "containers-storage:${IMAGE_REF}:${channel}"
+            sudo podman tag "${IMAGE_REF}:${channel}" "${IMAGE_REF}:${channel}-${BUILD_DATE}"
+            if [ "${channel}" = "${DEFAULT_CHANNEL}" ]; then
+              sudo podman tag "${IMAGE_REF}:${channel}" "${IMAGE_REF}:${DEFAULT_TAG}" "${IMAGE_REF}:${BUILD_DATE}"
+            fi
+            sudo podman image inspect "${IMAGE_REF}:${channel}" --format "${channel}: {{len .RootFS.Layers}} layers"
+          done
+          sudo podman image prune -f >/dev/null || true
+          # Layers shared by the two channels (everything except the DMS chunks)
+          sudo podman image inspect "${IMAGE_REF}:stable" --format '{{range .RootFS.Layers}}{{println .}}{{end}}' | sort > /tmp/stable.layers
+          sudo podman image inspect "${IMAGE_REF}:rolling" --format '{{range .RootFS.Layers}}{{println .}}{{end}}' | sort > /tmp/rolling.layers
+          echo "layers shared by stable and rolling: $(comm -12 /tmp/stable.layers /tmp/rolling.layers | grep -c .)"
+          echo "layers only in rolling: $(comm -13 /tmp/stable.layers /tmp/rolling.layers | grep -c .)"
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -97,12 +120,23 @@ jobs:
         if: github.event_name != 'pull_request'
         id: push
         run: |
-          for tag in "${DEFAULT_TAG}" "${BUILD_DATE}"; do
-            for i in 1 2 3; do
-              sudo podman push --digestfile=/tmp/digestfile "${IMAGE_REF}:${tag}" && break || sleep $((5 * i))
-            done
+          tags=""
+          for channel in ${DMS_CHANNELS}; do
+            tags="${tags} ${channel} ${channel}-${BUILD_DATE}"
+            if [ "${channel}" = "${DEFAULT_CHANNEL}" ]; then tags="${tags} ${DEFAULT_TAG} ${BUILD_DATE}"; fi
           done
-          echo "digest=$(cat /tmp/digestfile)" >> "${GITHUB_OUTPUT}"
+          : > /tmp/digests
+          for tag in ${tags}; do
+            ok=0
+            for i in 1 2 3; do
+              if sudo podman push --digestfile=/tmp/digestfile "${IMAGE_REF}:${tag}"; then ok=1; break; fi
+              sleep $((5 * i))
+            done
+            [ "${ok}" = 1 ] || { echo "::error::push of ${IMAGE_REF}:${tag} failed"; exit 1; }
+            echo "${tag} $(cat /tmp/digestfile)" | tee -a /tmp/digests
+          done
+          # every distinct digest gets signed (tags of the same channel share one digest)
+          echo "digests=$(awk '{print $2}' /tmp/digests | sort -u | tr '\n' ' ')" >> "${GITHUB_OUTPUT}"
 
       - name: Install Cosign
         if: github.event_name != 'pull_request'
@@ -111,7 +145,7 @@ jobs:
       - name: Sign image
         if: github.event_name != 'pull_request'
         env:
-          DIGEST: ${{ steps.push.outputs.digest }}
+          DIGESTS: ${{ steps.push.outputs.digests }}
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
           COSIGN_PASSWORD: "" # key must be generated with an empty password (see README)
           COSIGN_EXPERIMENTAL: "false"
@@ -119,4 +153,6 @@ jobs:
           if [ -z "${COSIGN_PRIVATE_KEY}" ]; then
             echo "::error::Repository secret SIGNING_SECRET is not set (see README)"; exit 1
           fi
-          cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE_REF}@${DIGEST}"
+          for digest in ${DIGESTS}; do
+            cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE_REF}@${digest}"
+          done

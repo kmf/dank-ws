@@ -3,7 +3,8 @@
 A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled on
 [bluefin-lts](https://github.com/ublue-os/bluefin-lts), that ships:
 
-- **niri** (compositor) + **DankMaterialShell** (`dms`, `quickshell-git`, `matugen`, `cliphist`, `danksearch`, `dgop`, `dankcalendar-git`)
+- **niri** (compositor) + **DankMaterialShell** (`dms`, `quickshell` or `quickshell-git`, `matugen`, `cliphist`, `danksearch`, `dgop`, `dankcalendar-git`),
+  in a stable or rolling flavour - see [Choosing a DMS channel](#choosing-a-dms-channel)
 - **ghostty** and **kitty** terminals
 - **dms-greeter** on **greetd** as the login screen (replaces gdm if present)
 - `cava`, `kf6-kimageformats`
@@ -11,7 +12,7 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
 - **Homebrew** (Linuxbrew, unpacked on first boot), **Bazaar** (Flathub app store, Flatpak),
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)
 
-Packages come from EPEL/CRB plus the COPRs `avengemedia/danklinux`, `avengemedia/dms-git`,
+Packages come from EPEL/CRB plus the COPRs `avengemedia/danklinux`, `avengemedia/dms` or `avengemedia/dms-git`,
 `yalter/niri`, `atim/starship` (EL10 builds; starship is not in EPEL 10) and [`kmf/dank-ws-copr`](https://github.com/kmf/dank-ws-copr).
 The COPR repos are disabled again at the end of the build. Brave's and Docker's yum repos are
 left on disk but disabled (`enabled=0`) after install, so updates come from rebuilding the image.
@@ -30,11 +31,33 @@ One `Containerfile` builds two images (selected by `--build-arg ENABLE_NVIDIA=0|
 
 Each variant has its own interactive install ISO - see [Installer ISO](#installer-iso-live-usb).
 
+## Choosing a DMS channel
+
+Each image is published in two DMS channels (`--build-arg DMS_CHANNEL=stable|rolling`):
+
+| Tag | DMS from | Notes |
+|---|---|---|
+| `:stable` | `avengemedia/dms` (tagged DMS releases) + `quickshell` | |
+| `:rolling` | `avengemedia/dms-git` (git snapshots) + `quickshell-git` | newest features, can break |
+| `:latest` | same image as `:rolling` | what installed systems track by default |
+
+Everything else in the image is identical. Switch with:
+
+```bash
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/kmf/dank-ws:rolling          # or :stable
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/kmf/dank-ws-nvidia:rolling   # or :stable
+sudo systemctl reboot
+```
+
+Only the DMS layers are downloaded (the rest is shared between the channels), and the switch takes
+effect after the reboot. Updates then follow the chosen tag. To undo, `sudo bootc rollback` and reboot,
+or switch back to the other tag (or `:latest`) the same way.
+
 ## Layout
 
 | Path | Purpose |
 |---|---|
-| `Containerfile` | The image (`ARG BASE_TAG` selects the `centos-bootc` tag, default `c10s`; `ARG ENABLE_NVIDIA` selects the variant) |
+| `Containerfile` | The image (`ARG BASE_TAG` selects the `centos-bootc` tag, default `c10s`; `ARG ENABLE_NVIDIA` selects the variant; `ARG DMS_CHANNEL` selects `stable` or `rolling` DMS, default `rolling`) |
 | `build/` | `nvidia.sh` (kernel swap + NVIDIA driver, only run when `ENABLE_NVIDIA=1`) and `nvidia_files/` (Secure Boot key enrollment helper) |
 | `system_files/` | Copied into `/`: greetd config, greeter + `docker` group sysusers/tmpfiles, `flatpak-preinstall.service`, Bazaar preinstall list |
 | `.github/workflows/build.yml` | Matrix-build both images, push to GHCR, sign with cosign (weekly + on push to `main`) |
@@ -112,8 +135,8 @@ negativo17's `nvidia-driver`, `nvidia-driver-cuda`, `nvidia-settings`, `libnvidi
 ### How updates flow (end to end)
 
 1. **GitHub Actions builds the images**: weekly (Sunday 05:00 UTC, picks up base image and COPR updates) and on every push to `main`.
-2. Each build is pushed to `ghcr.io/kmf/dank-ws` / `ghcr.io/kmf/dank-ws-nvidia` (`:latest` + a `YYYYMMDD` tag) and **signed with cosign** (`SIGNING_SECRET`).
-3. The laptop's **`uupd.timer`** (daily) pulls `:latest`, stages the new deployment, and updates Flatpaks and Homebrew too. **Reboot to apply** the staged OS update (`sudo uupd --apply` reboots for you).
+2. Each build is pushed to `ghcr.io/kmf/dank-ws` / `ghcr.io/kmf/dank-ws-nvidia` (`:stable`, `:rolling` and `:latest` = rolling, each with a dated tag: `stable-YYYYMMDD`, `rolling-YYYYMMDD`, `YYYYMMDD`) and **signed with cosign** (`SIGNING_SECRET`).
+3. The laptop's **`uupd.timer`** (daily) pulls the tag it tracks (`:latest` unless switched), stages the new deployment, and updates Flatpaks and Homebrew too. **Reboot to apply** the staged OS update (`sudo uupd --apply` reboots for you).
 4. The installed system **only accepts signed images** for these two repositories (see below), so a tampered or unsigned image is rejected at pull time.
 
 ```bash
@@ -186,7 +209,7 @@ Do not add `--no-systemd`: that variant adds `spawn-at-startup "dms" "run"`, whi
    ```
 3. **Publish**: push this repo to GitHub (default branch `main`). The workflow builds on push,
    weekly (Sundays 05:00 UTC) and on manual dispatch, pushes
-   `ghcr.io/<owner>/dank-ws:latest` and `ghcr.io/<owner>/dank-ws-nvidia:latest` (+ a `YYYYMMDD` tag each, matrix build) and signs the digests. Pull requests build only.
+   `ghcr.io/<owner>/dank-ws` and `ghcr.io/<owner>/dank-ws-nvidia` as `:stable`, `:rolling` and `:latest` (= rolling), plus dated tags (matrix build per variant, both channels per job) and signs the digests. Pull requests build only.
    After the first push, make the GHCR package public if you want to pull it without credentials.
 4. **Switch a host** (any existing bootc system, e.g. CentOS Stream 10 bootc, Fedora bootc, Bluefin LTS):
    ```bash

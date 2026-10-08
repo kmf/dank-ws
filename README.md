@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo/penguin-full-256.png" alt="dank-ws penguin logo" width="256" height="256">
+</p>
+
 # dank-ws-image
 
 A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled on

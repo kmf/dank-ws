@@ -10,6 +10,8 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
 - `cava`, `kf6-kimageformats`
 - **Printing**: CUPS (`cups`, `cups-filters`, `avahi` for network printer discovery) and `cups-pk-helper`, so printers
   can be added and configured from the DMS settings (polkit-authorized, no root shell needed)
+- **Plymouth** graphical boot splash with the dank-ws penguin logo (see [`logo/`](logo/)) and a graphical LUKS
+  passphrase prompt - see [Boot splash](#boot-splash-plymouth)
 - **starship** prompt (bash/zsh) with a system-wide default config - see [Starship](#starship)
 - **Homebrew** (Linuxbrew, unpacked on first boot), **Bazaar** (Flathub app store, Flatpak),
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)
@@ -62,7 +64,7 @@ or switch back to the other tag (or `:latest`) the same way.
 | Path | Purpose |
 |---|---|
 | `Containerfile` | The image (`ARG BASE_TAG` selects the `centos-bootc` tag, default `c10s`; `ARG ENABLE_NVIDIA` selects the variant; `ARG DMS_CHANNEL` selects `stable` or `rolling` DMS, default `rolling`) |
-| `build/` | `nvidia.sh` (kernel swap + NVIDIA driver, only run when `ENABLE_NVIDIA=1`) and `nvidia_files/` (Secure Boot key enrollment helper) |
+| `build/` | `nvidia.sh` (kernel swap + NVIDIA driver, only run when `ENABLE_NVIDIA=1`), `nvidia_files/` (Secure Boot key enrollment helper) and `initramfs.sh` (initramfs regeneration with plymouth + crypt, both variants) |
 | `system_files/` | Copied into `/`: greetd config, greeter + `docker` group sysusers/tmpfiles, `flatpak-preinstall.service`, Bazaar preinstall list |
 | `.github/workflows/build.yml` | Matrix-build both images, push to GHCR, sign with cosign (weekly + on push to `main`) |
 | `Justfile` | `build`, `build-nvidia`, `build-qcow2`, `build-qcow2-nvidia`, `build-iso`, `build-iso-nvidia`, `check`, `clean` |
@@ -108,6 +110,18 @@ Docker's CentOS repo; `docker.service` and `containerd.service` are enabled.
 Installed from the `atim/starship` COPR. `/etc/profile.d/starship.sh` initialises it for interactive
 bash/zsh (skipped for `TERM=dumb`/`linux` and when `~/.config/no-starship` exists). Without a
 `~/.config/starship.toml` the system default `/etc/starship.toml` (no Nerd Font glyphs required) is used.
+
+### Boot splash (Plymouth)
+
+`plymouth` + `plymouth-system-theme` are installed (as in Bluefin LTS) and the default theme is `dank-ws`
+(`system_files/usr/share/plymouth/themes/dank-ws/`): the dank-ws penguin (`watermark.png` =
+`logo/penguin-full-256.png`) on a dark background, with the stock spinner theme's throbber and password dialog
+(two-step plugin). The initramfs is regenerated with the `plymouth` and `crypt` dracut modules and the theme
+(`build/initramfs.sh`; the build fails if any of them, or the logo, is missing from the initramfs) and `/usr/lib/bootc/kargs.d/10-dank-ws-splash.toml` adds the kernel arguments `rhgb quiet`. So the
+LUKS passphrase is asked for on the graphical splash instead of a text prompt. bootc applies kargs.d
+changes as a diff, so existing installs get the arguments with the next `bootc upgrade` (or `uupd`) plus a
+reboot; nothing else is needed. Press `Esc` during boot to see the boot messages. On `dank-ws-nvidia` the
+splash runs on the NVIDIA driver, which is forced into the initramfs with `nvidia-drm.modeset=1`.
 
 ### Multimedia codecs (both images)
 From [negativo17's `epel-multimedia`](https://negativo17.org/) repo (the same source as bluefin-lts), installed
@@ -312,7 +326,7 @@ sudo dd if=output/dank-ws/bootiso/install.iso of=/dev/sdX bs=4M status=progress 
    passphrase. The default layout is an EFI partition, an XFS `/boot` and one LUKS2 partition holding LVM
    (root + swap). Choose *Custom* for your own layout.
 3. **User Creation** (tick *administrator* to get `sudo`); the root account stays disabled unless you set it.
-4. *Begin Installation*, reboot, and enter the LUKS passphrase at the boot prompt.
+4. *Begin Installation*, reboot, and enter the LUKS passphrase at the (graphical, Plymouth) boot prompt.
 
 On boot dracut may print `Failed to start systemd-cryptsetup@luks-... Unit ... not found`; this is a harmless
 duplicate unlock attempt in the initramfs - the passphrase prompt follows and the boot continues.

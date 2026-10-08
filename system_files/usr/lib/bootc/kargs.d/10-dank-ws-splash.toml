@@ -1,0 +1,4 @@
+# Graphical boot: `rhgb` starts the plymouth splash (and the graphical LUKS passphrase prompt), `quiet`
+# hides the kernel messages. Applied on install and, as a diff, on `bootc upgrade`/`bootc switch`.
+# To see the boot messages once, press Esc during boot.
+kargs = ["rhgb", "quiet"]

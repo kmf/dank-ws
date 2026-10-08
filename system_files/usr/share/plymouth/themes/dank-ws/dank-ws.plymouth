@@ -1,0 +1,61 @@
+[Plymouth Theme]
+Name=dank-ws
+Description=dank-ws penguin logo with the spinner theme's throbber and password prompt
+ModuleName=two-step
+
+[two-step]
+Font=Noto Sans 12
+TitleFont=Noto Sans Light 30
+ImageDir=/usr/share/plymouth/themes/dank-ws
+WatermarkHorizontalAlignment=.5
+WatermarkVerticalAlignment=.36
+DialogHorizontalAlignment=.5
+DialogVerticalAlignment=.74
+TitleHorizontalAlignment=.5
+TitleVerticalAlignment=.74
+HorizontalAlignment=.5
+VerticalAlignment=.78
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=0x14141c
+BackgroundEndColor=0x14141c
+ProgressBarBackgroundColor=0x606060
+ProgressBarForegroundColor=0xffffff
+MessageBelowAnimation=true
+
+[boot-up]
+UseEndAnimation=false
+
+[shutdown]
+UseEndAnimation=false
+
+[reboot]
+UseEndAnimation=false
+
+[updates]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Installing Updates...
+SubTitle=Do not turn off your computer
+
+[system-upgrade]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Upgrading System...
+SubTitle=Do not turn off your computer
+
+[firmware-upgrade]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Upgrading Firmware...
+SubTitle=Do not turn off your computer
+
+[system-reset]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Resetting System...
+SubTitle=Do not turn off your computer

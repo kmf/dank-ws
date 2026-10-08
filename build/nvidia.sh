@@ -40,7 +40,6 @@ dnf versionlock add kernel kernel-core kernel-modules kernel-modules-core kernel
 
 ### NVIDIA driver -------------------------------------------------------------
 KERNEL_VRA="$(rpm -q kernel --queryformat '%{EVR}.%{ARCH}')"
-QUALIFIED_KERNEL="$(ls /usr/lib/modules | tail -n 1)"
 
 ARCH="$(uname -m)"
 FEDORA_VERSION="${FEDORA_AKMODS_VERSION:-43}"
@@ -103,6 +102,5 @@ chown root:root /usr/bin/dank-ws-enroll-mok /etc/profile.d/dank-ws-nvidia-mok.sh
 chmod 0755 /usr/bin/dank-ws-enroll-mok
 chmod 0644 /etc/profile.d/dank-ws-nvidia-mok.sh
 
-### Rebuild the initramfs for the swapped kernel + nvidia -----------------------
-/usr/bin/dracut --no-hostonly --kver "${QUALIFIED_KERNEL}" --reproducible --tmpdir /boot \
-    --zstd -v --add ostree -f "/lib/modules/${QUALIFIED_KERNEL}/initramfs.img"
+# The initramfs for the swapped kernel + nvidia is rebuilt by build/initramfs.sh (next Containerfile
+# step, run for both variants).

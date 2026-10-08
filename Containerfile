@@ -81,7 +81,9 @@ RUN --mount=type=tmpfs,dst=/var \
         NetworkManager-wifi xdg-user-dirs tuned tuned-ppd nautilus \
         vim-enhanced tmux htop btop fastfetch unzip zip \
         google-noto-sans-fonts google-noto-emoji-fonts jetbrains-mono-fonts-all && \
+    dnf -y install plymouth plymouth-system-theme && \
     dnf -y install cups cups-filters cups-pk-helper avahi && \
+    test -f /usr/share/plymouth/themes/spinner/spinner.plymouth && \
     test -f /usr/share/dbus-1/system-services/org.opensuse.CupsPkHelper.Mechanism.service && \
     systemctl enable cups.socket cups.path avahi-daemon.service && \
     test -f /usr/lib/systemd/system/tuned.service && \
@@ -124,6 +126,19 @@ RUN --mount=type=tmpfs,dst=/var \
         dnf clean all && find /var -mindepth 1 -delete && \
         rm -rf /run/rhsm /run/selinux-policy; \
     fi
+
+# Initramfs (both variants): regenerate it once, after every package that ships dracut bits
+# (plymouth above, the swapped kernel + NVIDIA driver in the NVIDIA step), so the boot splash and
+# the graphical LUKS passphrase prompt work. The dank-ws Plymouth theme (penguin logo, see logo/)
+# is copied in first and made the default, so it ends up in the initramfs. See build/initramfs.sh.
+# Rechunking puts the initramfs in the shared "unpackaged content + initramfs" layer.
+COPY system_files/usr/share/plymouth/themes/dank-ws/ /usr/share/plymouth/themes/dank-ws/
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    --mount=type=bind,src=build,dst=/run/build \
+    ENABLE_NVIDIA="${ENABLE_NVIDIA}" /run/build/initramfs.sh && \
+    rm -rf /run/rhsm /run/selinux-policy
 
 # DankMaterialShell stack: everything from the avengemedia COPRs, in its own late layer
 # AFTER the heavy package/firmware/codec/NVIDIA layers, so a DMS bump only touches this

@@ -16,7 +16,11 @@ on:
       tag:
         description: Image tag on GHCR to embed in the ISO
         type: string
-        default: latest
+        default: stable
+      origin_tag:
+        description: Tag the installed system follows for updates (bootc origin set in %post)
+        type: string
+        default: stable
       publish_release:
         description: Split the ISO into <2 GiB parts and attach them to a GitHub release
         type: boolean
@@ -64,6 +68,7 @@ jobs:
     env:
       IMAGE_NAME: ${{ matrix.image_name }}
       IMAGE_TAG: ${{ inputs.tag }}
+      ORIGIN_TAG: ${{ inputs.origin_tag }}
       BIB_IMAGE: quay.io/centos-bootc/bootc-image-builder:latest
     steps:
       - name: Maximize build space
@@ -84,9 +89,10 @@ jobs:
       - name: Build installer ISO
         run: |
           # Same logic as the Justfile's _build-iso: iso.toml is a template, @IMAGE@ is the
-          # GHCR image the installed system is switched to (so it follows :latest after install)
+          # GHCR image the installed system is switched to (so it follows :${ORIGIN_TAG} after install)
           mkdir -p "output/${IMAGE_NAME}"
-          sed "s|@IMAGE@|ghcr.io/${IMAGE_OWNER}/${IMAGE_NAME}:latest|" iso.toml > "output/${IMAGE_NAME}/iso.toml"
+          sed "s|@IMAGE@|ghcr.io/${IMAGE_OWNER}/${IMAGE_NAME}:${ORIGIN_TAG}|" iso.toml > "output/${IMAGE_NAME}/iso.toml"
+          grep -n 'bootc switch' "output/${IMAGE_NAME}/iso.toml"
           sudo podman run \
             --rm --privileged --pull=newer --net=host \
             --security-opt label=type:unconfined_t \
@@ -100,6 +106,7 @@ jobs:
           sudo chown -R "$USER:$USER" output
           mkdir -p dist
           mv "output/${IMAGE_NAME}/bootiso/install.iso" "dist/${IMAGE_NAME}-install.iso"
+          cp "output/${IMAGE_NAME}/iso.toml" "dist/${IMAGE_NAME}-iso.toml"
           sudo rm -rf output /var/lib/containers/storage
           (cd dist && sha256sum "${IMAGE_NAME}-install.iso" | tee "SHA256SUMS-${IMAGE_NAME}")
           ls -lh dist

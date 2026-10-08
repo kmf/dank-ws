@@ -2,6 +2,8 @@ export image_name := env("IMAGE_NAME", "dank-ws")
 export base_tag := env("BASE_TAG", "c10s")
 export default_tag := env("DEFAULT_TAG", "latest")
 export dms_channel := env("DMS_CHANNEL", "rolling")
+# DMS channel the installer ISOs embed and the installed system follows (ghcr.io/<owner>/<image>:<channel>)
+export iso_channel := env("ISO_CHANNEL", "stable")
 export nvidia_image_name := env("NVIDIA_IMAGE_NAME", "dank-ws-nvidia")
 export akmods_nvidia_image := env("AKMODS_NVIDIA_IMAGE", "ghcr.io/ublue-os/akmods-nvidia-open:centos-10")
 export iso_owner := env("ISO_OWNER", "kmf")
@@ -23,13 +25,13 @@ check:
 #   target_image: image name (default: localhost/dank-ws)
 # tag: image tag (default: latest)
 [group('Build')]
-build target_image=("localhost/" + image_name) tag=default_tag:
+build target_image=("localhost/" + image_name) tag=default_tag channel=dms_channel:
     #!/usr/bin/env bash
     set -euo pipefail
     sudo podman build \
         --pull=newer \
         --build-arg BASE_TAG="{{ base_tag }}" \
-        --build-arg DMS_CHANNEL="{{ dms_channel }}" \
+        --build-arg DMS_CHANNEL="{{ channel }}" \
         --build-arg IMAGE_NAME="{{ image_name }}" \
         --tag "{{ target_image }}:{{ tag }}" \
         -f Containerfile .
@@ -39,13 +41,13 @@ build target_image=("localhost/" + image_name) tag=default_tag:
 #   target_image: image name (default: localhost/dank-ws-nvidia)
 #   tag: image tag (default: latest)
 [group('Build')]
-build-nvidia target_image=("localhost/" + nvidia_image_name) tag=default_tag:
+build-nvidia target_image=("localhost/" + nvidia_image_name) tag=default_tag channel=dms_channel:
     #!/usr/bin/env bash
     set -euo pipefail
     sudo podman build \
         --pull=newer \
         --build-arg BASE_TAG="{{ base_tag }}" \
-        --build-arg DMS_CHANNEL="{{ dms_channel }}" \
+        --build-arg DMS_CHANNEL="{{ channel }}" \
         --build-arg IMAGE_NAME="{{ nvidia_image_name }}" \
         --build-arg ENABLE_NVIDIA=1 \
         --build-arg AKMODS_NVIDIA_IMAGE="{{ akmods_nvidia_image }}" \
@@ -90,7 +92,7 @@ _build-iso name target_image tag:
     mkdir -p "output/{{ name }}"
     sudo rm -rf "output/{{ name }}/bootiso"
     # iso.toml is a template: @IMAGE@ is the GHCR image the installed system is switched to
-    sed "s|@IMAGE@|ghcr.io/{{ iso_owner }}/{{ name }}:latest|" iso.toml > "output/{{ name }}/iso.toml"
+    sed "s|@IMAGE@|ghcr.io/{{ iso_owner }}/{{ name }}:{{ iso_channel }}|" iso.toml > "output/{{ name }}/iso.toml"
     sudo podman run \
         --rm --privileged --pull=newer --net=host \
         --security-opt label=type:unconfined_t \
@@ -106,11 +108,11 @@ _build-iso name target_image tag:
 
 # Build the interactive installer ISO for dank-ws (output/dank-ws/bootiso/install.iso)
 [group('Build Virtual Machine Image')]
-build-iso target_image=("localhost/" + image_name) tag=default_tag: (build target_image tag) (_build-iso image_name target_image tag)
+build-iso target_image=("localhost/" + image_name) tag=iso_channel: (build target_image tag iso_channel) (_build-iso image_name target_image tag)
 
 # Build the interactive installer ISO for dank-ws-nvidia (output/dank-ws-nvidia/bootiso/install.iso)
 [group('Build Virtual Machine Image')]
-build-iso-nvidia target_image=("localhost/" + nvidia_image_name) tag=default_tag: (build-nvidia target_image tag) (_build-iso nvidia_image_name target_image tag)
+build-iso-nvidia target_image=("localhost/" + nvidia_image_name) tag=iso_channel: (build-nvidia target_image tag iso_channel) (_build-iso nvidia_image_name target_image tag)
 
 # Remove build output
 [group('Build')]

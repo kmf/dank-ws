@@ -14,6 +14,9 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
 - `cava`, `kf6-kimageformats`
 - **Clipboard / X11 apps**: `wl-clipboard` (`wl-copy`, `wl-paste`; DMS keeps the clipboard history itself, `Mod+V`)
   and `xwayland-satellite` (+ Xwayland), which niri starts on demand so X11 apps run and share the clipboard
+- **AppImages**: FUSE 2 (`fuse`, `fuse-libs`: `libfuse.so.2` and setuid `fusermount`) as the
+  [AppImage FUSE docs](https://github.com/AppImage/AppImageKit/wiki/FUSE) require, plus FUSE 3 (`fuse3`) - AppImages
+  run directly (`chmod +x` and start them), no extra group membership needed
 - **Printing**: CUPS (`cups`, `cups-filters`, `avahi` for network printer discovery) and `cups-pk-helper`, so printers
   can be added and configured from the DMS settings (polkit-authorized, no root shell needed)
 - **Plymouth** graphical boot splash with the dank-ws penguin logo (see [`logo/`](logo/)) and a graphical LUKS

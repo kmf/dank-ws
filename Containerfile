@@ -10,6 +10,12 @@
 # and bridges their clipboard; niri >= 25.08 spawns it on demand, no config needed. It is not in EPEL 10;
 # the EL10 build comes from the third-party COPR ulysg/xwayland-satellite (enabled only during the build).
 #
+# AppImages: FUSE 2 (`fuse` = setuid /usr/bin/fusermount, `fuse-libs` = libfuse.so.2), as the AppImage
+# FUSE wiki asks for on Fedora, plus FUSE 3 (fuse3/fuse3-libs, setuid fusermount3) for newer static
+# runtimes. All from CentOS Stream 10 BaseOS; fuse.ko ships with the kernel (CONFIG_FUSE_FS=m, autoloaded
+# via the /dev/fuse static node). No `trusted` group: that step is only for openSUSE's permissions.secure,
+# EL10 packages fusermount world-executable setuid root.
+#
 # Hyprland is intentionally NOT installed: kmf/dank-ws-copr ships a rebuilt
 # lua 5.5 for it, which conflicts with el10's stock lua-libs 5.4 (needed by
 # wireplumber-libs / ibus-libpinyin).
@@ -64,6 +70,9 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install wl-clipboard xwayland-satellite && \
     test -x /usr/bin/wl-copy && test -x /usr/bin/wl-paste && test -x /usr/bin/xwayland-satellite && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \
+    dnf -y install fuse fuse-libs fuse3 fuse3-libs && \
+    test -u /usr/bin/fusermount && test -u /usr/bin/fusermount3 && \
+    test -e /usr/lib64/libfuse.so.2 && test -e /usr/lib64/libfuse3.so.3 && \
     dnf -y install brave-origin && \
     rpm -ql brave-origin | head -40 && \
     dnf -y install docker-ce docker-ce-cli containerd.io \
@@ -255,7 +264,12 @@ RUN --mount=type=tmpfs,dst=/tmp \
 
 # Build-time leftovers: /var/roothome/buildinfo ships in the base image and
 # /run/* is written by dnf (and /run/cups by the cups package); bootc lint flags both.
+# fuse.ko check runs here so it covers the kernel the NVIDIA variant swaps in, too.
 RUN systemctl enable flatpak-preinstall.service dank-ws-docker-group.service && \
+    ( for k in /usr/lib/modules/*/; do \
+          { find "$k" -name 'fuse.ko*' | grep -q . || grep -q '/fuse.ko' "$k/modules.builtin"; } || \
+          { echo "no fuse kernel module in $k" >&2; exit 1; }; \
+      done ) && \
     rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy /run/tuned /run/cups && ln -s /var/opt /opt
 
 LABEL containers.bootc=1

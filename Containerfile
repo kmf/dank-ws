@@ -244,9 +244,9 @@ RUN --mount=type=tmpfs,dst=/tmp \
     find /etc/skel/.config /etc/niri -type f
 
 # Build-time leftovers: /var/roothome/buildinfo ships in the base image and
-# /run/* is written by dnf; bootc lint flags both.
+# /run/* is written by dnf (and /run/cups by the cups package); bootc lint flags both.
 RUN systemctl enable flatpak-preinstall.service dank-ws-docker-group.service && \
-    rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy /run/tuned && ln -s /var/opt /opt
+    rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy /run/tuned /run/cups && ln -s /var/opt /opt
 
 LABEL containers.bootc=1
 LABEL ostree.bootable=1

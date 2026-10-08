@@ -14,6 +14,9 @@
 # `bootc switch` to :rolling (see README, "Choosing a DMS channel").
 # --enforce-container-sigpolicy makes bootc verify future pulls against the cosign policy
 # shipped in the image (/etc/containers/policy.json, see build/signing.sh).
+# Branding: anaconda-iso has no branding options ([customizations.iso] is rejected for this type);
+# menu/product name, logos and volume label come from os-release and centos-logos. See README,
+# "Installer branding".
 [customizations.installer.kickstart]
 contents = """
 %post

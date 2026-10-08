@@ -288,6 +288,25 @@ ISOs are 4-5 GB, above GitHub's 2 GiB release-asset limit, so release assets are
 published ones were **built locally** (CI is manual only, see below) and are on the
 [`v0.1.0-iso` release](https://github.com/kmf/dank-ws/releases/tag/v0.1.0-iso) as split parts.
 
+### Installer branding (why the ISO still says CentOS Stream)
+
+The `anaconda-iso` type of bootc-image-builder has **no branding knobs**. Its config only accepts
+`customizations.installer` (kickstart, modules, `bootloader.grub2.menu-timeout`), `user`, `group`, `fips` and
+`kernel.append`; `[customizations.iso]` (`volume_id` etc.) is rejected for this type. The rest is derived:
+
+| What | Where it comes from | Result today |
+|---|---|---|
+| Boot menu entries (`Install ... `, `Test this media & install ...`) | osbuild's fixed grub2 template, filled with `NAME`/`VERSION_ID` from the image's `/usr/lib/os-release` | `Install CentOS Stream 10` |
+| Boot menu background/theme | none (plain text grub2 menu, BIOS and UEFI; no isolinux on EL10) | - |
+| Anaconda product name (top bar, welcome screen) | `.buildstamp`, same `NAME`/`VERSION_ID` | `CENTOS STREAM 10 INSTALLATION` |
+| Anaconda sidebar/top bar logos | `centos-logos`, installed into the installer from the CentOS repos built into bootc-image-builder (not from our image) | CentOS logos |
+| ISO volume label | derived from os-release `ID`/`VERSION_ID` | `CentOS-Stream-10-BaseOS-x86_64` |
+
+Putting the dank-ws penguin there means either changing `NAME` in the image's os-release (changes the
+product name everywhere, not just in the installer) or post-processing the finished ISO (adding an
+Anaconda `images/product.img` with the logos and rewriting `grub.cfg` on the ISO and in its EFI boot
+image with `xorriso`). Neither is done yet.
+
 ### Building the ISO in CI (manual)
 
 The **Build installer ISO** workflow (`.github/workflows/build-iso.yml`, `workflow_dispatch` only) pulls

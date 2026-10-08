@@ -43,8 +43,10 @@ echo "Regenerating ${INITRAMFS}"
 
 # Sanity checks on the new initramfs
 lsinitrd -m "${INITRAMFS}" > /tmp/dracut-modules
-for mod in plymouth crypt drm ostree; do
-    grep -qx "${mod}" /tmp/dracut-modules || { echo "ERROR: dracut module ${mod} missing from initramfs"; cat /tmp/dracut-modules; exit 1; }
+# (graphics: the stock config uses `simpledrm`, i.e. the firmware framebuffer, instead of the full `drm`
+# module; the real GPU driver takes over later. On dank-ws-nvidia the NVIDIA driver is forced in as well.)
+for mod in plymouth crypt ostree 'drm|simpledrm'; do
+    grep -qxE "${mod}" /tmp/dracut-modules || { echo "ERROR: dracut module ${mod} missing from initramfs"; cat /tmp/dracut-modules; exit 1; }
 done
 lsinitrd "${INITRAMFS}" > /tmp/initramfs-files
 for f in 'usr/s?bin/plymouthd' 'usr/(bin|lib/systemd)/systemd-cryptsetup' \

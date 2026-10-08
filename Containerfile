@@ -264,12 +264,15 @@ RUN --mount=type=tmpfs,dst=/tmp \
 
 # Build-time leftovers: /var/roothome/buildinfo ships in the base image and
 # /run/* is written by dnf (and /run/cups by the cups package); bootc lint flags both.
-# fuse.ko check runs here so it covers the kernel the NVIDIA variant swaps in, too.
+# fuse.ko check runs here so it covers the kernel the NVIDIA variant swaps in, too. Only directories
+# with a vmlinuz count: the NVIDIA kernel swap leaves an empty-ish /usr/lib/modules/<old version>/
+# (depmod output, no modules) behind.
 RUN systemctl enable flatpak-preinstall.service dank-ws-docker-group.service && \
-    ( for k in /usr/lib/modules/*/; do \
-          { find "$k" -name 'fuse.ko*' | grep -q . || grep -q '/fuse.ko' "$k/modules.builtin"; } || \
+    ( n=0; for k in /usr/lib/modules/*/; do \
+          [ -e "${k}vmlinuz" ] || continue; n=$((n + 1)); \
+          { find "$k" -name 'fuse.ko*' | grep -q . || grep -q '/fuse.ko' "${k}modules.builtin"; } || \
           { echo "no fuse kernel module in $k" >&2; exit 1; }; \
-      done ) && \
+      done; [ "$n" -gt 0 ] ) && \
     rm -rf /opt /var/roothome/buildinfo /run/rhsm /run/selinux-policy /run/tuned /run/cups && ln -s /var/opt /opt
 
 LABEL containers.bootc=1

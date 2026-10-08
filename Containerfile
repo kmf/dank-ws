@@ -4,6 +4,12 @@
 # Layout follows ublue-os/bluefin-lts: base image + one big RUN with tmpfs
 # mounts over /var,/tmp,/boot so the layer carries no stray state.
 #
+# Clipboard / X11: wl-clipboard (wl-copy, wl-paste) is installed explicitly (before, it only came in
+# as a cliphist dependency). DMS keeps its clipboard history itself (dms server, ext-data-control),
+# so no `wl-paste --watch cliphist store` watcher is needed. xwayland-satellite gives X11 apps a display
+# and bridges their clipboard; niri >= 25.08 spawns it on demand, no config needed. It is not in EPEL 10;
+# the EL10 build comes from the third-party COPR ulysg/xwayland-satellite (enabled only during the build).
+#
 # Hyprland is intentionally NOT installed: kmf/dank-ws-copr ships a rebuilt
 # lua 5.5 for it, which conflicts with el10's stock lua-libs 5.4 (needed by
 # wireplumber-libs / ibus-libpinyin).
@@ -48,12 +54,15 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
     dnf -y copr enable atim/starship && \
+    dnf -y copr enable ulysg/xwayland-satellite && \
     dnf -y copr enable ublue-os/packages "epel-10-$(arch)" && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/brave-browser.repo \
         https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/docker-ce.repo \
         https://download.docker.com/linux/centos/docker-ce.repo && \
     dnf -y install -x alacritty niri ghostty kitty greetd cava kf6-kimageformats && \
+    dnf -y install wl-clipboard xwayland-satellite && \
+    test -x /usr/bin/wl-copy && test -x /usr/bin/wl-paste && test -x /usr/bin/xwayland-satellite && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \
     dnf -y install brave-origin && \
     rpm -ql brave-origin | head -40 && \
@@ -107,6 +116,7 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y copr disable kmf/dank-ws-copr && \
     dnf -y copr disable yalter/niri && \
     dnf -y copr disable atim/starship && \
+    dnf -y copr disable ulysg/xwayland-satellite && \
     dnf -y copr disable ublue-os/packages && \
     sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/brave-browser.repo /etc/yum.repos.d/docker-ce.repo && \
     dnf clean all && \

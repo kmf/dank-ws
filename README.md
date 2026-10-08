@@ -8,6 +8,8 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
 - **ghostty** and **kitty** terminals
 - **dms-greeter** on **greetd** as the login screen (replaces gdm if present)
 - `cava`, `kf6-kimageformats`
+- **Clipboard / X11 apps**: `wl-clipboard` (`wl-copy`, `wl-paste`; DMS keeps the clipboard history itself, `Mod+V`)
+  and `xwayland-satellite` (+ Xwayland), which niri starts on demand so X11 apps run and share the clipboard
 - **Printing**: CUPS (`cups`, `cups-filters`, `avahi` for network printer discovery) and `cups-pk-helper`, so printers
   can be added and configured from the DMS settings (polkit-authorized, no root shell needed)
 - **Plymouth** graphical boot splash with the dank-ws penguin logo (see [`logo/`](logo/)) and a graphical LUKS
@@ -17,7 +19,7 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)
 
 Packages come from EPEL/CRB plus the COPRs `avengemedia/danklinux`, `avengemedia/dms` or `avengemedia/dms-git`,
-`yalter/niri`, `atim/starship` (EL10 builds; starship is not in EPEL 10) and [`kmf/dank-ws-copr`](https://github.com/kmf/dank-ws-copr).
+`yalter/niri`, `atim/starship` (EL10 builds; starship is not in EPEL 10), `ulysg/xwayland-satellite` (EL10 build; not in EPEL 10) and [`kmf/dank-ws-copr`](https://github.com/kmf/dank-ws-copr).
 The COPR repos are disabled again at the end of the build. Brave's and Docker's yum repos are
 left on disk but disabled (`enabled=0`) after install, so updates come from rebuilding the image.
 

@@ -22,6 +22,8 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
 - **Plymouth** graphical boot splash with the dank-ws penguin logo (see [`logo/`](logo/)) and a graphical LUKS
   passphrase prompt - see [Boot splash](#boot-splash-plymouth)
 - **starship** prompt (bash/zsh) with a system-wide default config - see [Starship](#starship)
+- **1Password** desktop app (official RPM, native Wayland; in `/usr/lib/1Password`, `/opt/1Password` is a symlink)
+  instead of the Flatpak, whose clipboard does not work on niri - see [`build/1password.sh`](build/1password.sh)
 - **Homebrew** (Linuxbrew, unpacked on first boot), **Bazaar** (Flathub app store, Flatpak),
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)
 

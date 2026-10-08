@@ -159,6 +159,21 @@ RUN --mount=type=tmpfs,dst=/var \
     ENABLE_NVIDIA="${ENABLE_NVIDIA}" /run/build/initramfs.sh && \
     rm -rf /run/rhsm /run/selinux-policy
 
+# 1Password desktop app (official RPM, both variants and channels), in its own step before the DMS
+# layers so it is built once per job and shared by :stable and :rolling. The native app replaces the
+# Flatpak, whose clipboard does not work on niri. build/1password.sh moves it from /opt to
+# /usr/lib/1Password (/opt/1Password comes back as a tmpfiles.d symlink), declares its groups in
+# sysusers.d with fixed GIDs, launches it as a native Wayland app and tags its files with the
+# user.component xattr, so a 1Password update only changes its own rechunked layers.
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    --mount=type=bind,src=build,dst=/run/build \
+    /run/build/1password.sh && \
+    dnf clean all && \
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy
+
 # DankMaterialShell stack: everything from the avengemedia COPRs, in its own late layer
 # AFTER the heavy package/firmware/codec/NVIDIA layers, so a DMS bump only touches this
 # step. CI rechunks the image (rpm-ostree build-chunked-oci); the files of the DMS packages

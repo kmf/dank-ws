@@ -170,6 +170,30 @@ RUN --mount=type=tmpfs,dst=/var \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 
+# Tailscale, stable channel only (no-op for rolling). Same approach as ublue-os/bluefin-lts:
+# Tailscale's own EL repo (tailscale is not in EPEL 10 yet), left on disk but disabled, so updates
+# come from rebuilding the image, and tailscaled enabled. Its own step after the DMS layers, so the
+# DMS step and everything below it stays cached; the new unpackaged files (the .repo file, rpmdb)
+# are tagged with user.component like in the DMS step so they don't end up in the shared layer.
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    if [ "${DMS_CHANNEL}" = "stable" ]; then \
+        touch /tmp/tailscale-step-start && \
+        dnf config-manager --add-repo "https://pkgs.tailscale.com/stable/centos/10/tailscale.repo" && \
+        dnf config-manager --set-disabled tailscale-stable && \
+        dnf -y --enablerepo tailscale-stable install tailscale && \
+        rpm -q tailscale && \
+        test -f /usr/lib/systemd/system/tailscaled.service && \
+        systemctl enable tailscaled.service && \
+        dnf clean all && \
+        find /usr /etc -xdev -type f -newer /tmp/tailscale-step-start -print0 | \
+            xargs -0 -r sh -c 'for f; do getfattr -n user.component "$f" >/dev/null 2>&1 || \
+                { setfattr -n user.component -v tailscale "$f" && echo "tailscale: $f"; }; done' sh && \
+        find /var -mindepth 1 -delete && \
+        rm -rf /run/rhsm /run/selinux-policy; \
+    fi
+
 # Config files (greetd config, greeter user/cache dir). Copied AFTER the
 # package install so our /etc/greetd/config.toml wins over the packaged one.
 COPY system_files/ /

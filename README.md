@@ -8,6 +8,8 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
 - **ghostty** and **kitty** terminals
 - **dms-greeter** on **greetd** as the login screen (replaces gdm if present)
 - `cava`, `kf6-kimageformats`
+- **Printing**: CUPS (`cups`, `cups-filters`, `avahi` for network printer discovery) and `cups-pk-helper`, so printers
+  can be added and configured from the DMS settings (polkit-authorized, no root shell needed)
 - **starship** prompt (bash/zsh) with a system-wide default config - see [Starship](#starship)
 - **Homebrew** (Linuxbrew, unpacked on first boot), **Bazaar** (Flathub app store, Flatpak),
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)

@@ -81,6 +81,9 @@ RUN --mount=type=tmpfs,dst=/var \
         NetworkManager-wifi xdg-user-dirs tuned tuned-ppd nautilus \
         vim-enhanced tmux htop btop fastfetch unzip zip \
         google-noto-sans-fonts google-noto-emoji-fonts jetbrains-mono-fonts-all && \
+    dnf -y install cups cups-filters cups-pk-helper avahi && \
+    test -f /usr/share/dbus-1/system-services/org.opensuse.CupsPkHelper.Mechanism.service && \
+    systemctl enable cups.socket cups.path avahi-daemon.service && \
     test -f /usr/lib/systemd/system/tuned.service && \
     test -f /usr/lib/systemd/system/tuned-ppd.service && \
     systemctl enable tuned.service tuned-ppd.service && \

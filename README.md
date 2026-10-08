@@ -49,7 +49,7 @@ Each image is published in two DMS channels (`--build-arg DMS_CHANNEL=stable|rol
 |---|---|---|
 | `:stable` | `avengemedia/dms` (tagged DMS releases) + `quickshell` | also includes **Tailscale** (`tailscaled` enabled) |
 | `:rolling` | `avengemedia/dms-git` (git snapshots) + `quickshell-git` | newest features, can break |
-| `:latest` | same image as `:rolling` | what installed systems track by default |
+| `:latest` | same image as `:rolling` | kept for systems installed from older ISOs, which track it; current ISOs install `:stable` |
 
 Everything else in the image is identical, except that `:stable` also ships [Tailscale](https://tailscale.com)
 from Tailscale's own CentOS 10 repo (as Bluefin LTS does; the repo is left on disk but disabled), with
@@ -160,7 +160,7 @@ negativo17's `nvidia-driver`, `nvidia-driver-cuda`, `nvidia-settings`, `libnvidi
 
 1. **GitHub Actions builds the images**: weekly (Sunday 05:00 UTC, picks up base image and COPR updates) and on every push to `main`.
 2. Each build is pushed to `ghcr.io/kmf/dank-ws` / `ghcr.io/kmf/dank-ws-nvidia` (`:stable`, `:rolling` and `:latest` = rolling, each with a dated tag: `stable-YYYYMMDD`, `rolling-YYYYMMDD`, `YYYYMMDD`) and **signed with cosign** (`SIGNING_SECRET`).
-3. The laptop's **`uupd.timer`** (daily) pulls the tag it tracks (`:latest` unless switched), stages the new deployment, and updates Flatpaks and Homebrew too. **Reboot to apply** the staged OS update (`sudo uupd --apply` reboots for you).
+3. The laptop's **`uupd.timer`** (daily) pulls the tag it tracks (`:stable` for installs from current ISOs, `:latest` = rolling for installs from older ISOs, or whatever you switched to), stages the new deployment, and updates Flatpaks and Homebrew too. **Reboot to apply** the staged OS update (`sudo uupd --apply` reboots for you).
 4. The installed system **only accepts signed images** for these two repositories (see below), so a tampered or unsigned image is rejected at pull time.
 
 ```bash
@@ -264,8 +264,11 @@ Before building a VM image, edit the placeholder user/password in `image.toml`. 
 `just build-iso` / `just build-iso-nvidia` build an **interactive Anaconda installer** with
 [bootc-image-builder](https://github.com/osbuild/bootc-image-builder) (`--type anaconda-iso`). The ISO
 **embeds the image it was built from**, so installing works offline; the kickstart in `iso.toml` only adds a
-`%post` step that re-points the installed system at `ghcr.io/<owner>/<image>:latest` (`bootc switch
+`%post` step that re-points the installed system at `ghcr.io/<owner>/<image>:stable` (`bootc switch
 --mutate-in-place`, no download) so `bootc upgrade` / `uupd` follow the published image from then on.
+The ISOs embed and track the `:stable` DMS channel (`ISO_CHANNEL` in the Justfile, `tag`/`origin_tag` in the
+workflow); systems installed from ISOs built before that track `:latest` (= `:rolling`), which is still published.
+Either can move to the other channel with `bootc switch` (see [Choosing a DMS channel](#choosing-a-dms-channel)).
 That means the image must exist on GHCR (public) for updates to work. The switch uses
 `--enforce-container-sigpolicy`, so later updates are verified against the cosign policy shipped in the image
 (see [Signature enforcement](#signature-enforcement-installed-systems)). An ISO only carries that policy if the
@@ -312,7 +315,8 @@ image with `xorriso`). Neither is done yet.
 The **Build installer ISO** workflow (`.github/workflows/build-iso.yml`, `workflow_dispatch` only) pulls
 `ghcr.io/<owner>/<variant>:<tag>` and runs the same bootc-image-builder step as the Justfile on a free
 `ubuntu-24.04` runner (about 11 minutes for dank-ws). Inputs: `variant` (`dank-ws`, `dank-ws-nvidia` or
-`both`, one matrix job each), `tag`, `publish_release` and `release_tag`. The ISO and its checksum are
+`both`, one matrix job each), `tag` (image to embed, default `stable`), `origin_tag` (tag the installed system
+follows, default `stable`), `publish_release` and `release_tag`. The ISO and its checksum are
 uploaded as an Actions artifact (kept 14 days, stored uncompressed). With `publish_release` the ISO is
 split into 1900M parts and attached to the release (created as a prerelease if missing):
 

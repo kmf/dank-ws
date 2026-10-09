@@ -24,6 +24,9 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
 - **starship** prompt (bash/zsh) with a system-wide default config - see [Starship](#starship)
 - **1Password** desktop app (official RPM, native Wayland; in `/usr/lib/1Password`, `/opt/1Password` is a symlink)
   instead of the Flatpak, whose clipboard does not work on niri - see [`build/1password.sh`](build/1password.sh)
+- **Cider** (Apple Music client from [repo.cider.sh](https://repo.cider.sh/), native Wayland; needs a purchased licence) - see [`build/cider.sh`](build/cider.sh)
+- **Fonts**: JetBrains Mono, Fira Code, Fira Mono, Inconsolata, Geist, Geist Mono and the CodeNewRoman, CaskaydiaCove and
+  CaskaydiaMono Nerd Fonts - see [`build/fonts.sh`](build/fonts.sh)
 - **Homebrew** (Linuxbrew, unpacked on first boot), **Bazaar** (Flathub app store, Flatpak),
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)
 

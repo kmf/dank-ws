@@ -19,6 +19,8 @@ A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled 
   run directly (`chmod +x` and start them), no extra group membership needed
 - **Printing**: CUPS (`cups`, `cups-filters`, `avahi` for network printer discovery) and `cups-pk-helper`, so printers
   can be added and configured from the DMS settings (polkit-authorized, no root shell needed)
+- **Fingerprint login**: `fprintd`/`fprintd-pam` with authselect `with-fingerprint` (sudo, polkit, greeter; password as
+  fallback). Enroll with `fprintd-enroll`; for the lock screen also enable it in DMS Settings -> Lock Screen
 - **Plymouth** graphical boot splash with the dank-ws penguin logo (see [`logo/`](logo/)) and a graphical LUKS
   passphrase prompt - see [Boot splash](#boot-splash-plymouth)
 - **starship** prompt (bash/zsh) with a system-wide default config - see [Starship](#starship)

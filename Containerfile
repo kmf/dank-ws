@@ -174,18 +174,6 @@ RUN --mount=type=tmpfs,dst=/var \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 
-# Cider (Apple Music client, vendor repo repo.cider.sh), same pattern as 1Password: own step before the
-# DMS layers, repo disabled on disk, /usr/bin/Cider wrapper for native Wayland, files tagged for their own
-# rechunked layers. See build/cider.sh.
-RUN --mount=type=tmpfs,dst=/var \
-    --mount=type=tmpfs,dst=/tmp \
-    --mount=type=tmpfs,dst=/boot \
-    --mount=type=bind,src=build,dst=/run/build \
-    /run/build/cider.sh && \
-    dnf clean all && \
-    find /var -mindepth 1 -delete && \
-    rm -rf /run/rhsm /run/selinux-policy
-
 # Extra fonts: Fira Code (EPEL), plus pinned, checksum-verified upstream releases of CodeNewRoman /
 # CaskaydiaCove / CaskaydiaMono Nerd Fonts, Inconsolata, Fira Mono, Geist and Geist Mono under
 # /usr/share/fonts (tagged fonts-extra for their own rechunked layer). See build/fonts.sh.

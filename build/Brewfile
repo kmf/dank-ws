@@ -1,0 +1,19 @@
+# dank-ws: optional shell tools from Homebrew. Not installed automatically; run
+#   brew bundle --file /usr/share/dank-ws/Brewfile
+# brew's bin directory comes AFTER the system paths (see /etc/profile.d/brew.sh), so these never
+# shadow image tools. starship is in the image already (COPR), so it is not listed here.
+brew "eza"
+brew "zoxide"
+brew "dust"
+brew "lazygit"
+brew "yazi"
+brew "fzf"
+brew "bat"
+brew "ripgrep"
+brew "fd"
+brew "atuin"
+brew "btop"
+brew "duf"
+brew "tldr"
+brew "git-delta"
+brew "jq"

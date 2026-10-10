@@ -95,6 +95,8 @@ from `ghcr.io/ublue-os/brew` (the same image bluefin-lts uses, pinned by digest 
 (owned by uid/gid 1000, i.e. the first user), then touches `/etc/.linuxbrew` so it only runs once.
 `brew-update.timer` and `brew-upgrade.timer` are enabled. `gcc`, `zstd`, `file`, `procps-ng` and `git`
 are installed because Homebrew needs them.
+Optional shell tools (eza, zoxide, dust, lazygit, yazi, fzf, bat, ripgrep, fd, atuin, btop, duf, tldr, git-delta, jq):
+`brew bundle --file /usr/share/dank-ws/Brewfile` (not installed automatically; brew's `bin` comes after the system paths).
 
 ### Bazaar / Flathub
 `flatpak` is installed and the Flathub remote is shipped in `/etc/flatpak/remotes.d/`.

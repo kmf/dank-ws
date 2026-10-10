@@ -40,8 +40,9 @@ ARG ENABLE_NVIDIA="0"
 ARG AKMODS_NVIDIA_IMAGE="scratch"
 
 # Homebrew payload + units (brew-setup.service unpacks it on first boot).
-# Same source as ublue-os/bluefin-lts; pinned by digest, bump deliberately.
-FROM ghcr.io/ublue-os/brew:latest@sha256:cf6388d6edb3a6fad699f06c0ceb3807f8f1368f942b08f8cc6d45ac4fd1cd92 AS brew
+# Same source as ublue-os/bluefin-lts; pinned by digest, bump deliberately (and update the tarball
+# SHA-256 in build/homebrew.sh with it).
+FROM ghcr.io/ublue-os/brew:latest@sha256:2aaf87e3757466bc28d056505a651c7ca5c56fd28f6ff709b34f3f5dbc860e89 AS brew
 
 FROM ${AKMODS_NVIDIA_IMAGE} AS akmods_nvidia
 
@@ -197,6 +198,18 @@ RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/boot \
     --mount=type=bind,src=build,dst=/run/build \
     /run/build/fonts.sh && \
+    dnf clean all && \
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy
+
+# Homebrew (payload + units copied from ghcr.io/ublue-os/brew above): verify the pinned tarball, add the
+# tmpfiles.d entry and the optional Brewfile, and tag it all so it gets its own rechunked layer.
+# See build/homebrew.sh.
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    --mount=type=bind,src=build,dst=/run/build \
+    /run/build/homebrew.sh && \
     dnf clean all && \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy

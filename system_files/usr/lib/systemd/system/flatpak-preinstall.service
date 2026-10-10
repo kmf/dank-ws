@@ -4,12 +4,17 @@ Wants=network-online.target
 After=network-online.target
 # Skipped silently when this flatpak build has no `preinstall` subcommand.
 ConditionPathExists=/usr/bin/flatpak
+# Keep retrying (see Restart= below) instead of giving up until the next boot, e.g. on a
+# fresh Wi-Fi install where Flathub is unreachable until the user connects to a network.
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
 ExecCondition=/usr/bin/sh -c 'flatpak preinstall --help >/dev/null 2>&1'
 ExecStart=/usr/bin/flatpak preinstall -y
 RemainAfterExit=yes
+Restart=on-failure
+RestartSec=2min
 
 [Install]
 WantedBy=multi-user.target

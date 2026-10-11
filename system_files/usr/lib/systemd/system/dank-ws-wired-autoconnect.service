@@ -1,0 +1,15 @@
+[Unit]
+Description=Enable autoconnect on installer-created wired profiles (once per profile)
+After=NetworkManager.service
+Requires=NetworkManager.service
+Before=network-online.target NetworkManager-wait-online.service
+ConditionPathExists=!/etc/dank-ws/no-wired-autoconnect-fix
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/dank-ws-wired-autoconnect
+RemainAfterExit=yes
+TimeoutStartSec=30
+
+[Install]
+WantedBy=NetworkManager.service

@@ -322,7 +322,9 @@ RUN --mount=type=tmpfs,dst=/tmp \
 # fuse.ko check runs here so it covers the kernel the NVIDIA variant swaps in, too. Only directories
 # with a vmlinuz count: the NVIDIA kernel swap leaves an empty-ish /usr/lib/modules/<old version>/
 # (depmod output, no modules) behind.
-RUN systemctl enable flatpak-preinstall.service dank-ws-docker-group.service && \
+RUN systemctl enable flatpak-preinstall.service dank-ws-docker-group.service dank-ws-wired-autoconnect.service && \
+    test -x /usr/libexec/dank-ws-wired-autoconnect && bash -n /usr/libexec/dank-ws-wired-autoconnect && \
+    systemctl is-enabled dank-ws-wired-autoconnect.service && \
     ( n=0; for k in /usr/lib/modules/*/; do \
           [ -e "${k}vmlinuz" ] || continue; n=$((n + 1)); \
           { find "$k" -name 'fuse.ko*' | grep -q . || grep -q '/fuse.ko' "${k}modules.builtin"; } || \

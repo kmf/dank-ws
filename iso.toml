@@ -14,12 +14,23 @@
 # `bootc switch` to :rolling (see README, "Choosing a DMS channel").
 # --enforce-container-sigpolicy makes bootc verify future pulls against the cosign policy
 # shipped in the image (/etc/containers/policy.json, see build/signing.sh).
+# Networking: `network --device=link ... --onboot=yes` plus the %post loop give installed wired
+# profiles autoconnect=yes (Anaconda defaults inactive NICs to autoconnect=no). Existing installs are
+# fixed by dank-ws-wired-autoconnect.service.
 # Branding: anaconda-iso has no branding options ([customizations.iso] is rejected for this type);
 # menu/product name, logos and volume label come from os-release and centos-logos. See README,
 # "Installer branding".
 [customizations.installer.kickstart]
 contents = """
+network --device=link --bootproto=dhcp --onboot=yes --activate
+
 %post
+# Anaconda writes autoconnect=false for NICs that weren't activated in the installer: turn it on for
+# every wired keyfile it created, so the machine has network at boot (not only after login).
+for f in /etc/NetworkManager/system-connections/*.nmconnection; do
+  [ -f "$f" ] && grep -q '^type=ethernet' "$f" && sed -i '/^autoconnect=false$/d' "$f"
+done
+
 bootc switch --mutate-in-place --transport registry --enforce-container-sigpolicy @IMAGE@
 %end
 """

@@ -1,0 +1,34 @@
+#!/usr/bin/bash
+# Re-enable autoconnect on wired profiles the Anaconda installer created with autoconnect=no.
+#
+# Anaconda writes a keyfile per wired NIC it saw during install. NICs that were not activated in the
+# installer get connection.autoconnect=no, so the machine has no network until a desktop component
+# brings the link up after login.
+#
+# Heuristic (only installer-style profiles, only once each):
+#   * type 802-3-ethernet and connection.autoconnect=no
+#   * connection.id == connection.interface-name (Anaconda names profiles after the device;
+#     user-made profiles are "Wired connection N" or a custom name)
+#   * the profile UUID has not been handled before (stamp in /var/lib/dank-ws/wired-autoconnect/)
+# After the first pass every matching UUID is stamped, so if you later set autoconnect=no on purpose
+# it stays that way. Opt out entirely: touch /etc/dank-ws/no-wired-autoconnect-fix
+set -euo pipefail
+
+[ -e /etc/dank-ws/no-wired-autoconnect-fix ] && exit 0
+stamps=/var/lib/dank-ws/wired-autoconnect
+mkdir -p "$stamps"
+
+nmcli -t -f UUID,TYPE connection show | while IFS=: read -r uuid type; do
+    [ "$type" = "802-3-ethernet" ] || continue
+    [ -e "$stamps/$uuid" ] && continue
+    vals=$(nmcli -g connection.id,connection.interface-name,connection.autoconnect connection show "$uuid")
+    id=$(sed -n 1p <<<"$vals"); ifname=$(sed -n 2p <<<"$vals"); auto=$(sed -n 3p <<<"$vals")
+    if [ "$auto" = "no" ] && [ -n "$ifname" ] && [ "$id" = "$ifname" ]; then
+        if nmcli connection modify "$uuid" connection.autoconnect yes; then
+            echo "enabled autoconnect on installer profile '$id' ($uuid)"
+            nmcli connection up "$uuid" >/dev/null 2>&1 &
+        fi
+    fi
+    touch "$stamps/$uuid"
+done
+wait

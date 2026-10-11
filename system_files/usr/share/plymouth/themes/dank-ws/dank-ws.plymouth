@@ -1,6 +1,6 @@
 [Plymouth Theme]
 Name=dank-ws
-Description=dank-ws penguin logo with the spinner theme's throbber and password prompt
+Description=Dank Workstation (dank-ws) penguin logo with the spinner theme's throbber and password prompt
 ModuleName=two-step
 
 [two-step]

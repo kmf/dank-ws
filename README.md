@@ -2,9 +2,9 @@
   <img src="logo/penguin-full-256.png" alt="dank-ws penguin logo" width="256" height="256">
 </p>
 
-# dank-ws-image
+# Dank Workstation (dank-ws)
 
-A CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled on
+**Dank Workstation** (dank-ws for short) is a CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled on
 [bluefin-lts](https://github.com/ublue-os/bluefin-lts), that ships:
 
 - **niri** (compositor) + **DankMaterialShell** (`dms`, `quickshell` or `quickshell-git`, `matugen`, `cliphist`, `danksearch`, `dgop`, `dankcalendar-git`),
@@ -302,7 +302,7 @@ ISOs are 4-5 GB, above GitHub's 2 GiB release-asset limit, so release assets are
 published ones were **built locally** (CI is manual only, see below) and are on the
 [`v0.1.0-iso` release](https://github.com/kmf/dank-ws/releases/tag/v0.1.0-iso) as split parts.
 
-### Installer branding (why the ISO still says CentOS Stream)
+### Installer branding
 
 The `anaconda-iso` type of bootc-image-builder has **no branding knobs**. Its config only accepts
 `customizations.installer` (kickstart, modules, `bootloader.grub2.menu-timeout`), `user`, `group`, `fips` and
@@ -310,14 +310,15 @@ The `anaconda-iso` type of bootc-image-builder has **no branding knobs**. Its co
 
 | What | Where it comes from | Result today |
 |---|---|---|
-| Boot menu entries (`Install ... `, `Test this media & install ...`) | osbuild's fixed grub2 template, filled with `NAME`/`VERSION_ID` from the image's `/usr/lib/os-release` | `Install CentOS Stream 10` |
+| Boot menu entries (`Install ... `, `Test this media & install ...`) | osbuild's fixed grub2 template, filled with `NAME`/`VERSION_ID` from the image's `/usr/lib/os-release` | `Install Dank Workstation 10` |
 | Boot menu background/theme | none (plain text grub2 menu, BIOS and UEFI; no isolinux on EL10) | - |
-| Anaconda product name (top bar, welcome screen) | `.buildstamp`, same `NAME`/`VERSION_ID` | `CENTOS STREAM 10 INSTALLATION` |
+| Anaconda product name (top bar, welcome screen) | `.buildstamp`, same `NAME`/`VERSION_ID` | `DANK WORKSTATION 10 INSTALLATION` (after an ISO rebuild) |
 | Anaconda sidebar/top bar logos | `centos-logos`, installed into the installer from the CentOS repos built into bootc-image-builder (not from our image) | CentOS logos |
 | ISO volume label | derived from os-release `ID`/`VERSION_ID` | `CentOS-Stream-10-BaseOS-x86_64` |
 
-Putting the dank-ws penguin there means either changing `NAME` in the image's os-release (changes the
-product name everywhere, not just in the installer) or post-processing the finished ISO (adding an
+`NAME`/`PRETTY_NAME` in the image's os-release are set to Dank Workstation (Bluefin LTS approach: `ID=centos`
+kept for tooling, `ID_LIKE="centos rhel fedora"`), so installed systems' boot menu entries read
+`Dank Workstation 10 (Coughlan) (ostree:0)`. Putting the penguin in the installer still needs post-processing the finished ISO (adding an
 Anaconda `images/product.img` with the logos and rewriting `grub.cfg` on the ISO and in its EFI boot
 image with `xorriso`). Neither is done yet.
 

@@ -133,7 +133,7 @@ jobs:
           rm "${IMAGE_NAME}-install.iso"
           if ! gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             # may race with the other matrix job: fall through to upload if the release now exists
-            gh release create "${RELEASE_TAG}" --prerelease --title "Installer ISOs ${RELEASE_TAG}" \
+            gh release create "${RELEASE_TAG}" --prerelease --title "Dank Workstation installer ISOs ${RELEASE_TAG}" \
               --notes "Split installer ISO parts. Reassemble: cat <name>-install.iso.part* > <name>-install.iso, then sha256sum -c SHA256SUMS-<name> --ignore-missing (see README)." \
               || gh release view "${RELEASE_TAG}" >/dev/null
           fi

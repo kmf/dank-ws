@@ -322,6 +322,19 @@ RUN --mount=type=tmpfs,dst=/tmp \
 # fuse.ko check runs here so it covers the kernel the NVIDIA variant swaps in, too. Only directories
 # with a vmlinuz count: the NVIDIA kernel swap leaves an empty-ish /usr/lib/modules/<old version>/
 # (depmod output, no modules) behind.
+# Branding (Bluefin LTS approach): product name in os-release, ID=centos kept so CentOS tooling still works.
+# The bootc/ostree boot entry title is "<PRETTY_NAME> (ostree:N)".
+RUN sed -i \
+        -e 's/^NAME=.*/NAME="Dank Workstation"/' \
+        -e 's/^PRETTY_NAME=.*/PRETTY_NAME="Dank Workstation 10 (Coughlan)"/' \
+        -e 's/^ID_LIKE=.*/ID_LIKE="centos rhel fedora"/' \
+        -e 's|^HOME_URL=.*|HOME_URL="https://github.com/kmf/dank-ws"|' \
+        -e 's|^BUG_REPORT_URL=.*|BUG_REPORT_URL="https://github.com/kmf/dank-ws/issues"|' \
+        /usr/lib/os-release && \
+    printf 'VARIANT="%s"\nVARIANT_ID=%s\nDEFAULT_HOSTNAME="dank-ws"\n' "${IMAGE_NAME}" "${IMAGE_NAME}" >> /usr/lib/os-release && \
+    . /usr/lib/os-release && [ "$ID" = centos ] && [ "$VERSION_ID" = 10 ] && [ "$NAME" = "Dank Workstation" ] && \
+    [ "$ID_LIKE" = "centos rhel fedora" ] && [ "$PRETTY_NAME" = "Dank Workstation 10 (Coughlan)" ]
+
 RUN systemctl enable flatpak-preinstall.service dank-ws-docker-group.service dank-ws-wired-autoconnect.service && \
     test -x /usr/libexec/dank-ws-wired-autoconnect && bash -n /usr/libexec/dank-ws-wired-autoconnect && \
     systemctl is-enabled dank-ws-wired-autoconnect.service && \

@@ -15,6 +15,14 @@
 # layers and a 1Password update does not touch the shared, DMS or Tailscale layers.
 set -xeuo pipefail
 
+# 1Password publishes the desktop RPM for x86_64 only (its aarch64 RPM repo carries just 1password-cli;
+# the ARM desktop app is an unsigned "latest" tarball). The aarch64 image ships without it for now:
+# users can install the Flatpak (clipboard caveat on niri) or the tarball.
+if [ "$(uname -m)" != x86_64 ]; then
+    echo "1password.sh: no 1Password desktop RPM for $(uname -m), skipping"
+    exit 0
+fi
+
 GID_ONEPASSWORD=1500       # same GID Universal Blue uses
 GID_ONEPASSWORD_MCP=1700   # 1600 is Universal Blue's onepassword-cli GID; keep it free
 APP_DIR=/usr/lib/1Password

@@ -13,6 +13,11 @@ on:
         type: choice
         options: [dank-ws, dank-ws-nvidia, both]
         default: dank-ws
+      arch:
+        description: ISO architecture (aarch64 is dank-ws only; x86_64 assets keep their old names)
+        type: choice
+        options: [x86_64, aarch64, both]
+        default: x86_64
       tag:
         description: Image tag on GHCR to embed in the ISO
         type: string
@@ -47,17 +52,33 @@ jobs:
       - id: m
         env:
           VARIANT: ${{ inputs.variant }}
+          ARCH: ${{ inputs.arch }}
         run: |
           case "${VARIANT}" in
-            both) echo 'matrix={"image_name":["dank-ws","dank-ws-nvidia"]}' >> "${GITHUB_OUTPUT}" ;;
-            dank-ws|dank-ws-nvidia) echo "matrix={\"image_name\":[\"${VARIANT}\"]}" >> "${GITHUB_OUTPUT}" ;;
+            both) variants="dank-ws dank-ws-nvidia" ;;
+            dank-ws|dank-ws-nvidia) variants="${VARIANT}" ;;
             *) echo "::error::unknown variant ${VARIANT}"; exit 1 ;;
           esac
+          case "${ARCH}" in both) arches="x86_64 aarch64" ;; x86_64|aarch64) arches="${ARCH}" ;; *) echo "::error::unknown arch ${ARCH}"; exit 1 ;; esac
+          # x86_64 keeps the historical asset names (<image>-install.iso*); aarch64 adds an -aarch64 suffix.
+          # dank-ws-nvidia is x86_64 only.
+          inc=""
+          for v in ${variants}; do for a in ${arches}; do
+            if [ "${a}" = aarch64 ]; then
+              [ "${v}" = dank-ws-nvidia ] && { echo "::warning::skipping dank-ws-nvidia on aarch64 (x86_64 only)"; continue; }
+              e="{\"image_name\":\"${v}\",\"arch\":\"aarch64\",\"platform\":\"linux/arm64\",\"runner\":\"ubuntu-24.04-arm\",\"asset\":\"${v}-aarch64\"}"
+            else
+              e="{\"image_name\":\"${v}\",\"arch\":\"x86_64\",\"platform\":\"linux/amd64\",\"runner\":\"ubuntu-24.04\",\"asset\":\"${v}\"}"
+            fi
+            inc="${inc:+${inc},}${e}"
+          done; done
+          [ -n "${inc}" ] || { echo "::error::nothing to build"; exit 1; }
+          echo "matrix={\"include\":[${inc}]}" | tee -a "${GITHUB_OUTPUT}"
 
   build_iso:
-    name: Build ISO for ${{ matrix.image_name }}
+    name: Build ISO for ${{ matrix.image_name }} (${{ matrix.arch }})
     needs: plan
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -67,11 +88,14 @@ jobs:
       packages: read # pull the image from GHCR (also works if the package is private)
     env:
       IMAGE_NAME: ${{ matrix.image_name }}
+      ASSET: ${{ matrix.asset }}
+      PLATFORM: ${{ matrix.platform }}
       IMAGE_TAG: ${{ inputs.tag }}
       ORIGIN_TAG: ${{ inputs.origin_tag }}
       BIB_IMAGE: quay.io/centos-bootc/bootc-image-builder:latest
     steps:
       - name: Maximize build space
+        if: matrix.arch == 'x86_64'
         uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6 # v10
 
       - name: Checkout
@@ -83,7 +107,7 @@ jobs:
           echo "IMAGE_OWNER=${OWNER}" >> "${GITHUB_ENV}"
           echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
           # bootc-image-builder reads the image from root's container storage
-          sudo podman pull "ghcr.io/${OWNER}/${IMAGE_NAME}:${IMAGE_TAG}"
+          sudo podman pull --platform "${PLATFORM}" "ghcr.io/${OWNER}/${IMAGE_NAME}:${IMAGE_TAG}"
           df -h /
 
       - name: Build installer ISO
@@ -105,16 +129,16 @@ jobs:
             "ghcr.io/${IMAGE_OWNER}/${IMAGE_NAME}:${IMAGE_TAG}"
           sudo chown -R "$USER:$USER" output
           mkdir -p dist
-          mv "output/${IMAGE_NAME}/bootiso/install.iso" "dist/${IMAGE_NAME}-install.iso"
-          cp "output/${IMAGE_NAME}/iso.toml" "dist/${IMAGE_NAME}-iso.toml"
+          mv "output/${IMAGE_NAME}/bootiso/install.iso" "dist/${ASSET}-install.iso"
+          cp "output/${IMAGE_NAME}/iso.toml" "dist/${ASSET}-iso.toml"
           sudo rm -rf output /var/lib/containers/storage
-          (cd dist && sha256sum "${IMAGE_NAME}-install.iso" | tee "SHA256SUMS-${IMAGE_NAME}")
+          (cd dist && sha256sum "${ASSET}-install.iso" | tee "SHA256SUMS-${ASSET}")
           ls -lh dist
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ matrix.image_name }}-install-iso
+          name: ${{ matrix.asset }}-install-iso
           path: dist/
           retention-days: 14
           compression-level: 0
@@ -128,9 +152,9 @@ jobs:
         run: |
           cd dist
           # GitHub release assets are limited to 2 GiB per file
-          split -b 1900M -d -a 2 "${IMAGE_NAME}-install.iso" "${IMAGE_NAME}-install.iso.part"
-          sha256sum "${IMAGE_NAME}"-install.iso.part* > "SHA256SUMS.parts-${IMAGE_NAME}"
-          rm "${IMAGE_NAME}-install.iso"
+          split -b 1900M -d -a 2 "${ASSET}-install.iso" "${ASSET}-install.iso.part"
+          sha256sum "${ASSET}"-install.iso.part* > "SHA256SUMS.parts-${ASSET}"
+          rm "${ASSET}-install.iso"
           if ! gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             # may race with the other matrix job: fall through to upload if the release now exists
             gh release create "${RELEASE_TAG}" --prerelease --title "Dank Workstation installer ISOs ${RELEASE_TAG}" \
@@ -138,4 +162,4 @@ jobs:
               || gh release view "${RELEASE_TAG}" >/dev/null
           fi
           gh release upload "${RELEASE_TAG}" --clobber \
-            "${IMAGE_NAME}"-install.iso.part* "SHA256SUMS-${IMAGE_NAME}" "SHA256SUMS.parts-${IMAGE_NAME}"
+            "${ASSET}"-install.iso.part* "SHA256SUMS-${ASSET}" "SHA256SUMS.parts-${ASSET}"

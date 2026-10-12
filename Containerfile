@@ -99,11 +99,11 @@ RUN --mount=type=tmpfs,dst=/var \
         gstreamer1-plugins-{bad-free,bad-free-libs,good,base} \
         gstreamer1-plugins-ugly gstreamer1-plugin-libav \
         lame lame-libs libjxl ffmpegthumbnailer openh264 x264-libs x265-libs \
-        libva-utils libva-intel-media-driver && \
+        libva-utils $(test "$(arch)" = x86_64 && echo libva-intel-media-driver) && \
     dnf -y install \
-        linux-firmware alsa-sof-firmware alsa-firmware intel-vsc-firmware \
+        linux-firmware alsa-sof-firmware alsa-firmware $(test "$(arch)" = x86_64 && echo intel-vsc-firmware) \
         iwlwifi-dvm-firmware iwlwifi-mvm-firmware iwlegacy-firmware \
-        libertas-firmware qcom-firmware microcode_ctl fwupd && \
+        libertas-firmware qcom-firmware $(test "$(arch)" = x86_64 && echo microcode_ctl) fwupd && \
     dnf -y install \
         NetworkManager-wifi xdg-user-dirs tuned tuned-ppd nautilus \
         vim-enhanced tmux htop btop fastfetch unzip zip \

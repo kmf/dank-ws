@@ -22,6 +22,7 @@
 # first and fall back to the password (no enrolled finger or no reader = straight to the password).
 # The DMS lock screen does not use system-auth; it has its own fprintd PAM context, switched on per
 # user in DMS Settings -> Lock Screen. Enroll with `fprintd-enroll`.
+# fprintd is only built for x86_64 in CentOS Stream 10, so the aarch64 image ships without it.
 #
 # Hyprland is intentionally NOT installed: kmf/dank-ws-copr ships a rebuilt
 # lua 5.5 for it, which conflicts with el10's stock lua-libs 5.4 (needed by
@@ -110,14 +111,16 @@ RUN --mount=type=tmpfs,dst=/var \
         google-noto-sans-fonts google-noto-emoji-fonts jetbrains-mono-fonts-all && \
     dnf -y install plymouth plymouth-system-theme && \
     dnf -y install cups cups-filters cups-pk-helper avahi && \
-    dnf -y install fprintd fprintd-pam libfprint && \
-    authselect enable-feature with-fingerprint && \
-    authselect check && \
-    authselect current | grep -qx -- '- with-fingerprint' && \
-    grep -Eq '^auth +sufficient +pam_fprintd\.so' /etc/authselect/system-auth && \
-    grep -q pam_fprintd.so /etc/authselect/fingerprint-auth && \
-    test -f /usr/lib64/security/pam_fprintd.so && \
-    test -f /usr/share/dbus-1/system-services/net.reactivated.Fprint.service && \
+    ( if [ "$(arch)" = x86_64 ]; then \
+        dnf -y install fprintd fprintd-pam libfprint && \
+        authselect enable-feature with-fingerprint && \
+        authselect check && \
+        authselect current | grep -qx -- '- with-fingerprint' && \
+        grep -Eq '^auth +sufficient +pam_fprintd\.so' /etc/authselect/system-auth && \
+        grep -q pam_fprintd.so /etc/authselect/fingerprint-auth && \
+        test -f /usr/lib64/security/pam_fprintd.so && \
+        test -f /usr/share/dbus-1/system-services/net.reactivated.Fprint.service; \
+      else echo "fprintd: not available for $(arch) in CentOS Stream 10, skipped"; fi ) && \
     test -f /usr/share/plymouth/themes/spinner/spinner.plymouth && \
     test -f /usr/share/dbus-1/system-services/org.opensuse.CupsPkHelper.Mechanism.service && \
     systemctl enable cups.socket cups.path avahi-daemon.service && \

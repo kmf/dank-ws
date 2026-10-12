@@ -41,7 +41,8 @@ ARG AKMODS_NVIDIA_IMAGE="scratch"
 
 # Homebrew payload + units (brew-setup.service unpacks it on first boot).
 # Same source as ublue-os/bluefin-lts; pinned by digest, bump deliberately (and update the tarball
-# SHA-256 in build/homebrew.sh with it).
+# per-arch SHA-256s in build/homebrew.sh with it). The digest is a multi-arch index (amd64 + arm64),
+# so each arch build picks its own payload.
 FROM ghcr.io/ublue-os/brew:latest@sha256:2aaf87e3757466bc28d056505a651c7ca5c56fd28f6ff709b34f3f5dbc860e89 AS brew
 
 FROM ${AKMODS_NVIDIA_IMAGE} AS akmods_nvidia

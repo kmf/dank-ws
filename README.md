@@ -56,11 +56,11 @@ Each image is published in two DMS channels (`--build-arg DMS_CHANNEL=stable|rol
 
 | Tag | DMS from | Notes |
 |---|---|---|
-| `:stable` | `avengemedia/dms` (tagged DMS releases) + `quickshell` | also includes **Tailscale** (`tailscaled` enabled) |
+| `:stable` | `avengemedia/dms` (tagged DMS releases) + `quickshell` | |
 | `:rolling` | `avengemedia/dms-git` (git snapshots) + `quickshell-git` | newest features, can break |
 | `:latest` | same image as `:rolling` | kept for systems installed from older ISOs, which track it; current ISOs install `:stable` |
 
-Everything else in the image is identical, except that `:stable` also ships [Tailscale](https://tailscale.com)
+Everything else in the image is identical. Every image (both channels, x86_64 and aarch64) ships [Tailscale](https://tailscale.com)
 from Tailscale's own CentOS 10 repo (as Bluefin LTS does; the repo is left on disk but disabled), with
 `tailscaled.service` enabled. Run `sudo tailscale up` to log in. Switch with:
 
@@ -70,7 +70,7 @@ sudo bootc switch --enforce-container-sigpolicy ghcr.io/kmf/dank-ws-nvidia:rolli
 sudo systemctl reboot
 ```
 
-Only the DMS (and, for `:stable`, Tailscale) layers are downloaded (the rest is shared between the channels), and the switch takes
+Only the DMS layers are downloaded (the rest is shared between the channels), and the switch takes
 effect after the reboot. Updates then follow the chosen tag. To undo, `sudo bootc rollback` and reboot,
 or switch back to the other tag (or `:latest`) the same way.
 

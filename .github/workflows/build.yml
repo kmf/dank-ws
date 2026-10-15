@@ -10,7 +10,17 @@ on:
       - "**/*.md"
   schedule:
     - cron: "0 5 * * 0" # weekly, Sunday 05:00 UTC (picks up base image + COPR updates)
+    - cron: "0 1 * * *" # nightly 03:00 SAST: :rolling only, skipped when avengemedia/dms-git is unchanged
   workflow_dispatch:
+    inputs:
+      nightly:
+        description: "Run as the nightly :rolling-only build (with the dms-git change check)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Build only, do not push or sign anything"
+        type: boolean
+        default: false
 
 env:
   BASE_TAG: c10s
@@ -26,8 +36,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  plan:
+    name: Plan channels
+    runs-on: ubuntu-24.04
+    outputs:
+      channels: ${{ steps.plan.outputs.channels }}
+      skip: ${{ steps.plan.outputs.skip }}
+      dms_git_fingerprint: ${{ steps.plan.outputs.fingerprint }}
+    steps:
+      - name: Decide channels and check avengemedia/dms-git for changes
+        id: plan
+        env:
+          NIGHTLY: ${{ github.event.schedule == '0 1 * * *' || inputs.nightly == true }}
+        run: |
+          # Fingerprint = name:latest-succeeded-build-id of every package in the dms-git COPR
+          # (dms-git, quickshell-git, ...). Stored as a label on :rolling to detect changes.
+          fp="$(curl -fsS --retry 3 "https://copr.fedorainfracloud.org/api_3/package/list?ownername=avengemedia&projectname=dms-git&with_latest_succeeded_build=true" \
+            | jq -r '[.items[] | select(.builds.latest_succeeded != null) | "\(.name):\(.builds.latest_succeeded.id)"] | sort | join(",")')" || fp=""
+          echo "fingerprint=${fp}" >> "${GITHUB_OUTPUT}"
+          echo "dms-git COPR fingerprint: ${fp:-<unavailable>}"
+          if [ "${NIGHTLY}" != "true" ]; then
+            echo "channels=${DMS_CHANNELS}" >> "${GITHUB_OUTPUT}"; echo "skip=false" >> "${GITHUB_OUTPUT}"; exit 0
+          fi
+          echo "channels=rolling" >> "${GITHUB_OUTPUT}"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          skip=true
+          for img in dank-ws dank-ws-nvidia; do
+            cur="$(skopeo inspect --no-tags "docker://ghcr.io/${owner}/${img}:rolling" 2>/dev/null \
+              | jq -r '.Labels["io.github.kmf.dank-ws.dms-git-fingerprint"] // ""')" || cur=""
+            echo "${img}:rolling fingerprint: ${cur:-<none>}"
+            if [ -z "${fp}" ] || [ "${cur}" != "${fp}" ]; then skip=false; fi
+          done
+          echo "skip=${skip}" >> "${GITHUB_OUTPUT}"
+          [ "${skip}" = true ] && echo "::notice::avengemedia/dms-git unchanged since the last :rolling build, skipping" || true
+
   build_push:
     name: Build and push ${{ matrix.image_name }}
+    needs: plan
+    if: needs.plan.outputs.skip != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -42,6 +88,9 @@ jobs:
             akmods_nvidia_image: ghcr.io/ublue-os/akmods-nvidia-open:centos-10
     env:
       IMAGE_NAME: ${{ matrix.image_name }}
+      DMS_CHANNELS: ${{ needs.plan.outputs.channels }}
+      DMS_GIT_FINGERPRINT: ${{ needs.plan.outputs.dms_git_fingerprint }}
+      PUBLISH: ${{ github.event_name != 'pull_request' && inputs.dry_run != true }}
       ENABLE_NVIDIA: ${{ matrix.enable_nvidia }}
       AKMODS_NVIDIA_IMAGE: ${{ matrix.akmods_nvidia_image }}
     permissions:
@@ -75,6 +124,7 @@ jobs:
               --build-arg ENABLE_NVIDIA="${ENABLE_NVIDIA}" \
               --build-arg AKMODS_NVIDIA_IMAGE="${AKMODS_NVIDIA_IMAGE}" \
               --build-arg DMS_CHANNEL="${channel}" \
+              $( [ "${channel}" = rolling ] && [ -n "${DMS_GIT_FINGERPRINT}" ] && echo --label "io.github.kmf.dank-ws.dms-git-fingerprint=${DMS_GIT_FINGERPRINT}" ) \
               --build-arg IMAGE_SOURCE="${{ github.server_url }}/${{ github.repository }}" \
               --tag "${IMAGE_REF}:${channel}" \
               -f Containerfile .
@@ -100,24 +150,25 @@ jobs:
             if [ "${channel}" = "${DEFAULT_CHANNEL}" ]; then
               sudo podman tag "${IMAGE_REF}:${channel}" "${IMAGE_REF}:${DEFAULT_TAG}" "${IMAGE_REF}:${BUILD_DATE}"
             fi
-            sudo podman image inspect "${IMAGE_REF}:${channel}" --format "${channel}: {{len .RootFS.Layers}} layers"
+            sudo podman image inspect "${IMAGE_REF}:${channel}" --format "${channel}: {{len .RootFS.Layers}} layers, dms-git fingerprint: {{index .Labels \"io.github.kmf.dank-ws.dms-git-fingerprint\"}}"
           done
           sudo podman image prune -f >/dev/null || true
           # Layers shared by the two channels (everything except the DMS chunks)
+          [ "${DMS_CHANNELS}" = "stable rolling" ] || exit 0
           sudo podman image inspect "${IMAGE_REF}:stable" --format '{{range .RootFS.Layers}}{{println .}}{{end}}' | sort > /tmp/stable.layers
           sudo podman image inspect "${IMAGE_REF}:rolling" --format '{{range .RootFS.Layers}}{{println .}}{{end}}' | sort > /tmp/rolling.layers
           echo "layers shared by stable and rolling: $(comm -12 /tmp/stable.layers /tmp/rolling.layers | grep -c .)"
           echo "layers only in rolling: $(comm -13 /tmp/stable.layers /tmp/rolling.layers | grep -c .)"
 
       - name: Login to GitHub Container Registry
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
           # cosign runs as the runner user and reads ~/.docker/config.json, not root's podman auth
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Push to GHCR
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         id: push
         run: |
           tags=""
@@ -139,11 +190,11 @@ jobs:
           echo "digests=$(awk '{print $2}' /tmp/digests | sort -u | tr '\n' ' ')" >> "${GITHUB_OUTPUT}"
 
       - name: Install Cosign
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
       - name: Sign image
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         env:
           DIGESTS: ${{ steps.push.outputs.digests }}
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}

@@ -99,6 +99,13 @@ RUN --mount=type=tmpfs,dst=/var \
         gstreamer1-plugins-ugly gstreamer1-plugin-libav \
         lame lame-libs libjxl ffmpegthumbnailer openh264 x264-libs x265-libs \
         libva-utils libva-intel-media-driver && \
+    # iHD from negativo17 exports __vaDriverInit_1_24; EL10's libva 2.22 only
+    # looks up to 1_22, so take libva from the same repo as the driver.
+    dnf -y upgrade --enablerepo=epel-multimedia libva && \
+    drv=$(grep -ao '__vaDriverInit_1_[0-9]*' /usr/lib64/dri/iHD_drv_video.so | head -1 | sed 's/.*_1_//') && \
+    lva=$(rpm -q --qf '%{version}' libva | cut -d. -f2) && \
+    echo "iHD needs VA-API 1.${drv}, libva provides 1.${lva}" && \
+    test "${lva}" -ge "${drv}" && \
     dnf -y install \
         linux-firmware alsa-sof-firmware alsa-firmware intel-vsc-firmware \
         iwlwifi-dvm-firmware iwlwifi-mvm-firmware iwlegacy-firmware \

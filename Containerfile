@@ -198,8 +198,8 @@ RUN --mount=type=tmpfs,dst=/var \
     rm -rf /run/rhsm /run/selinux-policy
 
 # Extra fonts: Fira Code (EPEL), plus pinned, checksum-verified upstream releases of CodeNewRoman /
-# CaskaydiaCove / CaskaydiaMono Nerd Fonts, Inconsolata, Fira Mono, Geist and Geist Mono under
-# /usr/share/fonts (tagged fonts-extra for their own rechunked layer). See build/fonts.sh.
+# CaskaydiaCove / CaskaydiaMono Nerd Fonts, Maple Mono NF / NF CN, Inconsolata, Fira Mono, Geist and
+# Geist Mono under /usr/share/fonts (tagged fonts-extra for their own rechunked layer). See build/fonts.sh.
 RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/boot \

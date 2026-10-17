@@ -2,7 +2,7 @@
 # Extra fonts, both image variants. EPEL RPMs where they exist (fira-code-fonts; jetbrains-mono-fonts-all
 # is already installed in the main package step), otherwise pinned upstream releases verified by
 # SHA-256, unpacked to /usr/share/fonts/<name>. Not in CentOS Stream 10 / EPEL 10: Fira Mono, Inconsolata,
-# Geist, Nerd Fonts. Bump a version by updating its URL and checksum together.
+# Geist, Nerd Fonts, Maple Mono. Bump a version by updating its URL and checksum together.
 set -xeuo pipefail
 
 COMPONENT=fonts-extra
@@ -10,6 +10,7 @@ NF=https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1
 GEIST=https://github.com/vercel/geist-font/releases/download/v1.7.2
 INCONSOLATA=https://github.com/googlefonts/Inconsolata/releases/download/v3.000
 FIRA=https://raw.githubusercontent.com/mozilla/Fira/4.202
+MAPLE=https://github.com/subframe7536/maple-font/releases/download/v7.9
 
 rpm -q attr >/dev/null || dnf -y install attr
 dnf -y --enablerepo=epel install fira-code-fonts fontconfig unzip xz
@@ -29,6 +30,8 @@ fetch "${FIRA}/ttf/FiraMono-Regular.ttf" 8c86f2963208a353c3435e28ecb38a99ab68f14
 fetch "${FIRA}/ttf/FiraMono-Medium.ttf" 5f9173ce3d05fadef74c7eed06570d54e4f75bd0cd9860726fb2987a7f848292
 fetch "${FIRA}/ttf/FiraMono-Bold.ttf" 2a28efd740e8da1da75d40ac79f0db4f60a0f1aead0b15ca16b4694a11b45fc6
 fetch "${FIRA}/LICENSE" 3d70884eedc6b82c9563e1848bc2a8189aacf1743e39d8fc4afb860c6da031a5
+fetch "${MAPLE}/MapleMono-NF-unhinted.zip" 8248d6260660be1066b5ebe90d25131582df8383f38db1c284dd1f2dc9d2b46e
+fetch "${MAPLE}/MapleMono-NF-CN-unhinted.zip" ab88522932cf4015dffeaef6dedc59a22a5fefecdcc6e583d9fcd997da5b7cac
 
 D=/usr/share/fonts
 # Nerd Fonts (each archive: <Family>NerdFont{,Mono,Propo}-*.{ttf,otf} + license)
@@ -51,9 +54,17 @@ done
 install -m 0644 "${W}/OFL.txt" "${D}/inconsolata-fonts/OFL.txt"
 # Fira Mono
 install -D -m 0644 -t "${D}/fira-mono-fonts" "${W}"/FiraMono-*.ttf "${W}/LICENSE"
+# Maple Mono NF and NF CN (Nerd Font glyphs; CN adds CJK, ~320 MB unpacked). Distinct families
+# ("Maple Mono NF" / "Maple Mono NF CN") and file names, kept in separate dirs anyway.
+for pair in MapleMono-NF-unhinted:maple-mono-nf-fonts MapleMono-NF-CN-unhinted:maple-mono-nf-cn-fonts; do
+    src="${pair%%:*}"; dst="${D}/${pair##*:}"
+    mkdir -p "${W}/${src}" && unzip -q "${W}/${src}.zip" -d "${W}/${src}"
+    install -D -m 0644 -t "${dst}" "${W}/${src}"/*.ttf "${W}/${src}/LICENSE.txt"
+done
 rm -rf "${W}"
 
-for d in codenewroman-nerd-fonts caskaydiacove-nerd-fonts caskaydiamono-nerd-fonts geist-fonts geist-mono-fonts inconsolata-fonts fira-mono-fonts; do
+for d in codenewroman-nerd-fonts caskaydiacove-nerd-fonts caskaydiamono-nerd-fonts geist-fonts geist-mono-fonts inconsolata-fonts fira-mono-fonts \
+         maple-mono-nf-fonts maple-mono-nf-cn-fonts; do
     find "${D}/${d}" -type d -exec chmod 0755 {} + && find "${D}/${d}" -type f -exec chmod 0644 {} +
     find "${D}/${d}" -type f -exec setfattr -n user.component -v "${COMPONENT}" {} +
 done
@@ -61,7 +72,8 @@ fc-cache -sf
 
 # Checks: every family must be known to fontconfig.
 for fam in "CodeNewRoman Nerd Font" "CaskaydiaCove Nerd Font" "CaskaydiaMono Nerd Font" \
-           "Inconsolata" "Fira Code" "Fira Mono" "Geist" "Geist Mono" "JetBrains Mono"; do
+           "Inconsolata" "Fira Code" "Fira Mono" "Geist" "Geist Mono" "JetBrains Mono" \
+           "Maple Mono NF" "Maple Mono NF CN"; do
     fc-list -q ":family=${fam}" || { echo "font family missing: ${fam}" >&2; fc-list : family | sort -u >&2; exit 1; }
     echo "font ok: ${fam} ($(fc-list ":family=${fam}" file | wc -l) files)"
 done

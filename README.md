@@ -32,7 +32,7 @@
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)
 
 Packages come from EPEL/CRB plus the COPRs `avengemedia/danklinux`, `avengemedia/dms` or `avengemedia/dms-git`,
-`yalter/niri`, `atim/starship` (EL10 builds; starship is not in EPEL 10), `ulysg/xwayland-satellite` (EL10 build; not in EPEL 10) and [`kmf/dank-ws-copr`](https://github.com/kmf/dank-ws-copr).
+`yalter/niri`, `ulysg/xwayland-satellite` (EL10 build; not in EPEL 10) and [`kmf/dank-ws-copr`](https://github.com/kmf/dank-ws-copr) (which also ships starship, repackaged from upstream releases; it is not in EPEL 10).
 The COPR repos are disabled again at the end of the build. Brave's and Docker's yum repos are
 left on disk but disabled (`enabled=0`) after install, so updates come from rebuilding the image.
 
@@ -124,7 +124,7 @@ Docker's CentOS repo; `docker.service` and `containerd.service` are enabled.
   Docker, not the compat shim alongside.
 
 ### Starship
-Installed from the `atim/starship` COPR. `/etc/profile.d/starship.sh` initialises it for interactive
+Installed from `kmf/dank-ws-copr` (upstream release binaries, tracking the latest starship). `/etc/profile.d/starship.sh` initialises it for interactive
 bash/zsh (skipped for `TERM=dumb`/`linux` and when `~/.config/no-starship` exists). Without a
 `~/.config/starship.toml` the system default `/etc/starship.toml` (no Nerd Font glyphs required) is used.
 

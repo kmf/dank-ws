@@ -67,7 +67,6 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf config-manager --set-enabled crb && \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
-    dnf -y copr enable atim/starship && \
     dnf -y copr enable ulysg/xwayland-satellite && \
     dnf -y copr enable ublue-os/packages "epel-10-$(arch)" && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/brave-browser.repo \
@@ -78,6 +77,7 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install wl-clipboard xwayland-satellite && \
     test -x /usr/bin/wl-copy && test -x /usr/bin/wl-paste && test -x /usr/bin/xwayland-satellite && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \
+    rpm -q starship && starship --version | head -1 && \
     dnf -y install fuse fuse-libs fuse3 fuse3-libs && \
     test -u /usr/bin/fusermount && test -u /usr/bin/fusermount3 && \
     test -e /usr/lib64/libfuse.so.2 && test -e /usr/lib64/libfuse3.so.3 && \
@@ -147,7 +147,6 @@ RUN --mount=type=tmpfs,dst=/var \
     systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service && \
     dnf -y copr disable kmf/dank-ws-copr && \
     dnf -y copr disable yalter/niri && \
-    dnf -y copr disable atim/starship && \
     dnf -y copr disable ulysg/xwayland-satellite && \
     dnf -y copr disable ublue-os/packages && \
     sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/brave-browser.repo /etc/yum.repos.d/docker-ce.repo && \

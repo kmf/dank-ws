@@ -27,7 +27,7 @@
 - **1Password** desktop app (official RPM, native Wayland; in `/usr/lib/1Password`, `/opt/1Password` is a symlink)
   instead of the Flatpak, whose clipboard does not work on niri - see [`build/1password.sh`](build/1password.sh)
 - **Fonts**: JetBrains Mono, Fira Code, Fira Mono, Inconsolata, Geist, Geist Mono and the CodeNewRoman, CaskaydiaCove and
-  CaskaydiaMono Nerd Fonts - see [`build/fonts.sh`](build/fonts.sh)
+  CaskaydiaMono Nerd Fonts, Maple Mono NF and Maple Mono NF CN - see [`build/fonts.sh`](build/fonts.sh)
 - **Homebrew** (Linuxbrew, unpacked on first boot), **Bazaar** (Flathub app store, Flatpak),
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)
 

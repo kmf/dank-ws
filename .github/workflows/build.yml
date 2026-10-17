@@ -71,19 +71,33 @@ jobs:
           [ "${skip}" = true ] && echo "::notice::avengemedia/dms-git unchanged since the last :rolling build, skipping" || true
 
   build_push:
-    name: Build and push ${{ matrix.image_name }}
+    name: Build and push ${{ matrix.image_name }} (${{ matrix.arch }})
     needs: plan
     if: needs.plan.outputs.skip != 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         include:
+          # dank-ws is multi-arch: each arch pushes per-arch tags (<tag>-<arch>) and the manifest job
+          # merges them into the public tags. dank-ws-nvidia stays amd64-only and pushes its tags directly.
           - image_name: dank-ws
+            arch: amd64
+            runner: ubuntu-24.04
+            multiarch: "1"
+            enable_nvidia: "0"
+            akmods_nvidia_image: scratch
+          - image_name: dank-ws
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            multiarch: "1"
             enable_nvidia: "0"
             akmods_nvidia_image: scratch
           - image_name: dank-ws-nvidia
+            arch: amd64
+            runner: ubuntu-24.04
+            multiarch: "0"
             enable_nvidia: "1"
             akmods_nvidia_image: ghcr.io/ublue-os/akmods-nvidia-open:centos-10
     env:
@@ -93,6 +107,8 @@ jobs:
       PUBLISH: ${{ github.event_name != 'pull_request' && inputs.dry_run != true }}
       ENABLE_NVIDIA: ${{ matrix.enable_nvidia }}
       AKMODS_NVIDIA_IMAGE: ${{ matrix.akmods_nvidia_image }}
+      ARCH: ${{ matrix.arch }}
+      MULTIARCH: ${{ matrix.multiarch }}
     permissions:
       contents: read
       packages: write
@@ -105,8 +121,18 @@ jobs:
           echo "IMAGE_REGISTRY=ghcr.io/${OWNER}" >> "${GITHUB_ENV}"
           echo "IMAGE_REF=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "${GITHUB_ENV}"
           echo "BUILD_DATE=$(date -u +%Y%m%d)" >> "${GITHUB_ENV}"
+          # Only main publishes the real tags. Any other branch (workflow_dispatch) publishes test tags
+          # (aarch64-test-<channel>[-<arch>]) of the multi-arch image only, never :stable/:rolling/:latest.
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            echo "TEST_MODE=0" >> "${GITHUB_ENV}"; echo "DO_PUSH=1" >> "${GITHUB_ENV}"
+          elif [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            echo "TEST_MODE=1" >> "${GITHUB_ENV}"; echo "DO_PUSH=0" >> "${GITHUB_ENV}"
+          else
+            echo "TEST_MODE=1" >> "${GITHUB_ENV}"; echo "DO_PUSH=${MULTIARCH}" >> "${GITHUB_ENV}"
+          fi
 
       - name: Maximize build space
+        if: matrix.arch == 'amd64'
         uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6 # v10
 
       - name: Checkout
@@ -161,40 +187,49 @@ jobs:
           echo "layers only in rolling: $(comm -13 /tmp/stable.layers /tmp/rolling.layers | grep -c .)"
 
       - name: Login to GitHub Container Registry
-        if: env.PUBLISH == 'true'
+        if: env.DO_PUSH == '1' && env.PUBLISH == 'true'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
           # cosign runs as the runner user and reads ~/.docker/config.json, not root's podman auth
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Push to GHCR
-        if: env.PUBLISH == 'true'
+        if: env.DO_PUSH == '1' && env.PUBLISH == 'true'
         id: push
         run: |
-          tags=""
+          # local tag -> remote tag pairs
+          pairs=""
           for channel in ${DMS_CHANNELS}; do
-            tags="${tags} ${channel} ${channel}-${BUILD_DATE}"
-            if [ "${channel}" = "${DEFAULT_CHANNEL}" ]; then tags="${tags} ${DEFAULT_TAG} ${BUILD_DATE}"; fi
+            if [ "${TEST_MODE}" = 1 ]; then
+              pairs="${pairs} ${channel}:aarch64-test-${channel}-${ARCH}"
+            elif [ "${MULTIARCH}" = 1 ]; then
+              # public tags are created by the manifest job from these per-arch tags
+              pairs="${pairs} ${channel}:${channel}-${ARCH}"
+            else
+              pairs="${pairs} ${channel}:${channel} ${channel}-${BUILD_DATE}:${channel}-${BUILD_DATE}"
+              if [ "${channel}" = "${DEFAULT_CHANNEL}" ]; then pairs="${pairs} ${DEFAULT_TAG}:${DEFAULT_TAG} ${BUILD_DATE}:${BUILD_DATE}"; fi
+            fi
           done
           : > /tmp/digests
-          for tag in ${tags}; do
+          for pair in ${pairs}; do
+            src="${pair%%:*}"; dst="${pair#*:}"
             ok=0
             for i in 1 2 3; do
-              if sudo podman push --digestfile=/tmp/digestfile "${IMAGE_REF}:${tag}"; then ok=1; break; fi
+              if sudo podman push --digestfile=/tmp/digestfile "${IMAGE_REF}:${src}" "docker://${IMAGE_REF}:${dst}"; then ok=1; break; fi
               sleep $((5 * i))
             done
-            [ "${ok}" = 1 ] || { echo "::error::push of ${IMAGE_REF}:${tag} failed"; exit 1; }
-            echo "${tag} $(cat /tmp/digestfile)" | tee -a /tmp/digests
+            [ "${ok}" = 1 ] || { echo "::error::push of ${IMAGE_REF}:${dst} failed"; exit 1; }
+            echo "${dst} $(cat /tmp/digestfile)" | tee -a /tmp/digests
           done
           # every distinct digest gets signed (tags of the same channel share one digest)
           echo "digests=$(awk '{print $2}' /tmp/digests | sort -u | tr '\n' ' ')" >> "${GITHUB_OUTPUT}"
 
       - name: Install Cosign
-        if: env.PUBLISH == 'true'
+        if: env.DO_PUSH == '1' && env.PUBLISH == 'true'
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
       - name: Sign image
-        if: env.PUBLISH == 'true'
+        if: env.DO_PUSH == '1' && env.PUBLISH == 'true'
         env:
           DIGESTS: ${{ steps.push.outputs.digests }}
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
@@ -204,6 +239,81 @@ jobs:
           if [ -z "${COSIGN_PRIVATE_KEY}" ]; then
             echo "::error::Repository secret SIGNING_SECRET is not set (see README)"; exit 1
           fi
+          for digest in ${DIGESTS}; do
+            cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE_REF}@${digest}"
+          done
+
+  manifest:
+    name: Merge multi-arch manifests (dank-ws)
+    needs: [plan, build_push]
+    # run even when the amd64-only nvidia leg failed; a missing dank-ws arch makes manifest add fail
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.plan.outputs.skip != 'true' && inputs.dry_run != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      IMAGE_NAME: dank-ws
+      DMS_CHANNELS: ${{ needs.plan.outputs.channels }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Prepare environment
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "IMAGE_REF=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "${GITHUB_ENV}"
+          echo "BUILD_DATE=$(date -u +%Y%m%d)" >> "${GITHUB_ENV}"
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then echo "TEST_MODE=0" >> "${GITHUB_ENV}"; else echo "TEST_MODE=1" >> "${GITHUB_ENV}"; fi
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Create and push manifest lists
+        id: push
+        run: |
+          : > /tmp/digests
+          for channel in ${DMS_CHANNELS}; do
+            if [ "${TEST_MODE}" = 1 ]; then
+              src="aarch64-test-${channel}"; tags="aarch64-test-${channel}"
+            else
+              src="${channel}"; tags="${channel} ${channel}-${BUILD_DATE}"
+              if [ "${channel}" = "${DEFAULT_CHANNEL}" ]; then tags="${tags} ${DEFAULT_TAG} ${BUILD_DATE}"; fi
+            fi
+            list="localhost/dank-ws-list:${channel}"
+            podman manifest rm "${list}" >/dev/null 2>&1 || true
+            podman manifest create "${list}"
+            for arch in amd64 arm64; do
+              podman manifest add --arch "${arch}" --os linux "${list}" "docker://${IMAGE_REF}:${src}-${arch}"
+            done
+            podman manifest inspect "${list}" | jq -r '.manifests[] | "\(.platform.architecture) \(.digest)"'
+            for tag in ${tags}; do
+              ok=0
+              for i in 1 2 3; do
+                if podman manifest push --all=false --digestfile=/tmp/digestfile "${list}" "docker://${IMAGE_REF}:${tag}"; then ok=1; break; fi
+                sleep $((5 * i))
+              done
+              [ "${ok}" = 1 ] || { echo "::error::push of ${IMAGE_REF}:${tag} failed"; exit 1; }
+              echo "${tag} $(cat /tmp/digestfile)" | tee -a /tmp/digests
+            done
+          done
+          echo "digests=$(awk '{print $2}' /tmp/digests | sort -u | tr '\n' ' ')" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Sign manifest lists
+        env:
+          DIGESTS: ${{ steps.push.outputs.digests }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          COSIGN_PASSWORD: ""
+          COSIGN_EXPERIMENTAL: "false"
+        run: |
+          if [ -z "${COSIGN_PRIVATE_KEY}" ]; then
+            echo "::error::Repository secret SIGNING_SECRET is not set (see README)"; exit 1
+          fi
+          # per-arch images were signed by the build jobs; this signs the index digests
           for digest in ${DIGESTS}; do
             cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE_REF}@${digest}"
           done

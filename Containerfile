@@ -22,6 +22,7 @@
 # first and fall back to the password (no enrolled finger or no reader = straight to the password).
 # The DMS lock screen does not use system-auth; it has its own fprintd PAM context, switched on per
 # user in DMS Settings -> Lock Screen. Enroll with `fprintd-enroll`.
+# fprintd is only built for x86_64 in CentOS Stream 10, so the aarch64 image ships without it.
 #
 # Hyprland is intentionally NOT installed: kmf/dank-ws-copr ships a rebuilt
 # lua 5.5 for it, which conflicts with el10's stock lua-libs 5.4 (needed by
@@ -41,7 +42,8 @@ ARG AKMODS_NVIDIA_IMAGE="scratch"
 
 # Homebrew payload + units (brew-setup.service unpacks it on first boot).
 # Same source as ublue-os/bluefin-lts; pinned by digest, bump deliberately (and update the tarball
-# SHA-256 in build/homebrew.sh with it).
+# per-arch SHA-256s in build/homebrew.sh with it). The digest is a multi-arch index (amd64 + arm64),
+# so each arch build picks its own payload.
 FROM ghcr.io/ublue-os/brew:latest@sha256:2aaf87e3757466bc28d056505a651c7ca5c56fd28f6ff709b34f3f5dbc860e89 AS brew
 
 FROM ${AKMODS_NVIDIA_IMAGE} AS akmods_nvidia
@@ -98,32 +100,36 @@ RUN --mount=type=tmpfs,dst=/var \
         gstreamer1-plugins-{bad-free,bad-free-libs,good,base} \
         gstreamer1-plugins-ugly gstreamer1-plugin-libav \
         lame lame-libs libjxl ffmpegthumbnailer openh264 x264-libs x265-libs \
-        libva-utils libva-intel-media-driver && \
-    # iHD from negativo17 exports __vaDriverInit_1_24; EL10's libva 2.22 only
-    # looks up to 1_22, so take libva from the same repo as the driver.
-    dnf -y upgrade --enablerepo=epel-multimedia libva && \
-    drv=$(grep -ao '__vaDriverInit_1_[0-9]*' /usr/lib64/dri/iHD_drv_video.so | head -1 | sed 's/.*_1_//') && \
-    lva=$(rpm -q --qf '%{version}' libva | cut -d. -f2) && \
-    echo "iHD needs VA-API 1.${drv}, libva provides 1.${lva}" && \
-    test "${lva}" -ge "${drv}" && \
+        libva-utils $(test "$(arch)" = x86_64 && echo libva-intel-media-driver) && \
+    ( if [ "$(arch)" = x86_64 ]; then \
+        # iHD from negativo17 exports __vaDriverInit_1_24; EL10's libva 2.22 only
+        # looks up to 1_22, so take libva from the same repo as the driver.
+        dnf -y upgrade --enablerepo=epel-multimedia libva && \
+        drv=$(grep -ao '__vaDriverInit_1_[0-9]*' /usr/lib64/dri/iHD_drv_video.so | head -1 | sed 's/.*_1_//') && \
+        lva=$(rpm -q --qf '%{version}' libva | cut -d. -f2) && \
+        echo "iHD needs VA-API 1.${drv}, libva provides 1.${lva}" && \
+        test "${lva}" -ge "${drv}"; \
+      else echo "libva-intel-media-driver: x86_64 only, skipped on $(arch)"; fi ) && \
     dnf -y install \
-        linux-firmware alsa-sof-firmware alsa-firmware intel-vsc-firmware \
+        linux-firmware alsa-sof-firmware alsa-firmware $(test "$(arch)" = x86_64 && echo intel-vsc-firmware) \
         iwlwifi-dvm-firmware iwlwifi-mvm-firmware iwlegacy-firmware \
-        libertas-firmware qcom-firmware microcode_ctl fwupd && \
+        libertas-firmware qcom-firmware $(test "$(arch)" = x86_64 && echo microcode_ctl) fwupd && \
     dnf -y install \
         NetworkManager-wifi xdg-user-dirs tuned tuned-ppd nautilus \
         vim-enhanced tmux htop btop fastfetch unzip zip \
         google-noto-sans-fonts google-noto-emoji-fonts jetbrains-mono-fonts-all && \
     dnf -y install plymouth plymouth-system-theme && \
     dnf -y install cups cups-filters cups-pk-helper avahi && \
-    dnf -y install fprintd fprintd-pam libfprint && \
-    authselect enable-feature with-fingerprint && \
-    authselect check && \
-    authselect current | grep -qx -- '- with-fingerprint' && \
-    grep -Eq '^auth +sufficient +pam_fprintd\.so' /etc/authselect/system-auth && \
-    grep -q pam_fprintd.so /etc/authselect/fingerprint-auth && \
-    test -f /usr/lib64/security/pam_fprintd.so && \
-    test -f /usr/share/dbus-1/system-services/net.reactivated.Fprint.service && \
+    ( if [ "$(arch)" = x86_64 ]; then \
+        dnf -y install fprintd fprintd-pam libfprint && \
+        authselect enable-feature with-fingerprint && \
+        authselect check && \
+        authselect current | grep -qx -- '- with-fingerprint' && \
+        grep -Eq '^auth +sufficient +pam_fprintd\.so' /etc/authselect/system-auth && \
+        grep -q pam_fprintd.so /etc/authselect/fingerprint-auth && \
+        test -f /usr/lib64/security/pam_fprintd.so && \
+        test -f /usr/share/dbus-1/system-services/net.reactivated.Fprint.service; \
+      else echo "fprintd: not available for $(arch) in CentOS Stream 10, skipped"; fi ) && \
     test -f /usr/share/plymouth/themes/spinner/spinner.plymouth && \
     test -f /usr/share/dbus-1/system-services/org.opensuse.CupsPkHelper.Mechanism.service && \
     systemctl enable cups.socket cups.path avahi-daemon.service && \

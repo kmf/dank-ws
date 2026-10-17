@@ -14,7 +14,13 @@
 set -xeuo pipefail
 
 TARBALL=/usr/share/homebrew.tar.zst
-TARBALL_SHA256=d64945182890cf879928ffe71fd3681758a699d01e5156974d762e1e307c6a19
+# ghcr.io/ublue-os/brew is a multi-arch index: the pinned digest resolves to a per-arch payload, so the
+# tarball SHA-256 is per arch too (update both when bumping the digest in the Containerfile).
+case "$(uname -m)" in
+    x86_64)  TARBALL_SHA256=d64945182890cf879928ffe71fd3681758a699d01e5156974d762e1e307c6a19 ;;
+    aarch64) TARBALL_SHA256=6ea13ce8bc64fad10c0db2cbe736bcb4695a6c41b517aa2f605a7bb8bdc33bb2 ;;
+    *) echo "homebrew.sh: unsupported arch $(uname -m)" >&2; exit 1 ;;
+esac
 COMPONENT=homebrew
 
 rpm -q attr >/dev/null || dnf -y install attr

@@ -82,7 +82,7 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install wl-clipboard && \
     dnf -y install xwayland-satellite && \
     dnf list --installed greetd cava gtk4-layer-shell xwayland-satellite ghostty && \
-    for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q danklinux; done && \
+    for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q danklinux || exit 1; done && \
     dnf list --installed ghostty | grep -q dank-ws-copr && \
     test -x /usr/bin/wl-copy && test -x /usr/bin/wl-paste && test -x /usr/bin/xwayland-satellite && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \

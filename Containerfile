@@ -8,8 +8,10 @@
 # as a cliphist dependency). DMS keeps its clipboard history itself (dms server, ext-data-control),
 # so no `wl-paste --watch cliphist store` watcher is needed. xwayland-satellite gives X11 apps a display
 # and bridges their clipboard; niri >= 25.08 spawns it on demand, no config needed. It is not in EPEL 10;
-# the EL10 build comes from the official DMS COPR avengemedia/danklinux (DMS upstream da3b658), added
-# disabled here and enabled only for that one install so it cannot replace other packages.
+# the EL10 build comes from the official DMS COPR avengemedia/danklinux (DMS upstream da3b658).
+# danklinux also supplies greetd, cava and gtk4-layer-shell (and alacritty, still excluded); the
+# kmf/dank-ws-copr repo excludes those names so it cannot shadow them, and danklinux excludes
+# ghostty* so ghostty (with themes) stays from kmf/dank-ws-copr.
 #
 # AppImages: FUSE 2 (`fuse` = setuid /usr/bin/fusermount, `fuse-libs` = libfuse.so.2), as the AppImage
 # FUSE wiki asks for on Fedora, plus FUSE 3 (fuse3/fuse3-libs, setuid fusermount3) for newer static
@@ -69,7 +71,8 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
     dnf -y copr enable avengemedia/danklinux && \
-    dnf config-manager --set-disabled 'copr:copr.fedorainfracloud.org:avengemedia:danklinux' && \
+    dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:avengemedia:danklinux.excludepkgs=ghostty*' && \
+    dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:kmf:dank-ws-copr.excludepkgs=greetd*,cava*,gtk4-layer-shell*,xwayland-satellite*,alacritty*' && \
     dnf -y copr enable ublue-os/packages "epel-10-$(arch)" && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/brave-browser.repo \
         https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
@@ -77,8 +80,10 @@ RUN --mount=type=tmpfs,dst=/var \
         https://download.docker.com/linux/centos/docker-ce.repo && \
     dnf -y install -x alacritty niri ghostty kitty greetd cava kf6-kimageformats && \
     dnf -y install wl-clipboard && \
-    dnf -y install --enablerepo='copr:copr.fedorainfracloud.org:avengemedia:danklinux' xwayland-satellite && \
-    dnf list --installed xwayland-satellite | grep danklinux && \
+    dnf -y install xwayland-satellite && \
+    dnf list --installed greetd cava gtk4-layer-shell xwayland-satellite ghostty && \
+    for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q danklinux; done && \
+    dnf list --installed ghostty | grep -q dank-ws-copr && \
     test -x /usr/bin/wl-copy && test -x /usr/bin/wl-paste && test -x /usr/bin/xwayland-satellite && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \
     rpm -q starship && starship --version | head -1 && \

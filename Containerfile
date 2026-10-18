@@ -8,7 +8,8 @@
 # as a cliphist dependency). DMS keeps its clipboard history itself (dms server, ext-data-control),
 # so no `wl-paste --watch cliphist store` watcher is needed. xwayland-satellite gives X11 apps a display
 # and bridges their clipboard; niri >= 25.08 spawns it on demand, no config needed. It is not in EPEL 10;
-# the EL10 build comes from the third-party COPR ulysg/xwayland-satellite (enabled only during the build).
+# the EL10 build comes from the official DMS COPR avengemedia/danklinux (DMS upstream da3b658), added
+# disabled here and enabled only for that one install so it cannot replace other packages.
 #
 # AppImages: FUSE 2 (`fuse` = setuid /usr/bin/fusermount, `fuse-libs` = libfuse.so.2), as the AppImage
 # FUSE wiki asks for on Fedora, plus FUSE 3 (fuse3/fuse3-libs, setuid fusermount3) for newer static
@@ -67,14 +68,17 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf config-manager --set-enabled crb && \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
-    dnf -y copr enable ulysg/xwayland-satellite && \
+    dnf -y copr enable avengemedia/danklinux && \
+    dnf config-manager --set-disabled 'copr:copr.fedorainfracloud.org:avengemedia:danklinux' && \
     dnf -y copr enable ublue-os/packages "epel-10-$(arch)" && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/brave-browser.repo \
         https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/docker-ce.repo \
         https://download.docker.com/linux/centos/docker-ce.repo && \
     dnf -y install -x alacritty niri ghostty kitty greetd cava kf6-kimageformats && \
-    dnf -y install wl-clipboard xwayland-satellite && \
+    dnf -y install wl-clipboard && \
+    dnf -y install --enablerepo='copr:copr.fedorainfracloud.org:avengemedia:danklinux' xwayland-satellite && \
+    dnf list --installed xwayland-satellite | grep danklinux && \
     test -x /usr/bin/wl-copy && test -x /usr/bin/wl-paste && test -x /usr/bin/xwayland-satellite && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \
     rpm -q starship && starship --version | head -1 && \
@@ -147,7 +151,7 @@ RUN --mount=type=tmpfs,dst=/var \
     systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service && \
     dnf -y copr disable kmf/dank-ws-copr && \
     dnf -y copr disable yalter/niri && \
-    dnf -y copr disable ulysg/xwayland-satellite && \
+    dnf -y copr disable avengemedia/danklinux && \
     dnf -y copr disable ublue-os/packages && \
     sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/brave-browser.repo /etc/yum.repos.d/docker-ce.repo && \
     dnf clean all && \

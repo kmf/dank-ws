@@ -34,9 +34,9 @@ env:
   # :latest (and the plain date tag) follow this channel; it is what the image always used.
   DEFAULT_CHANNEL: rolling
   DEFAULT_TAG: latest
-  # Image:channel pairs actually built (space-separated). Rolling-only for now; to re-enable
+  # Image:channel pairs actually built (space-separated). Rolling (+ nvidia rolling) for now; to re-enable
   # the rest, set: "dank-ws:stable dank-ws:rolling dank-ws-nvidia:stable dank-ws-nvidia:rolling"
-  ENABLED_BUILDS: dank-ws:rolling
+  ENABLED_BUILDS: dank-ws:rolling dank-ws-nvidia:rolling
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

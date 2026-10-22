@@ -61,13 +61,14 @@ ARG IMAGE_SOURCE=""
 # GitHub runners a single mirror (mirror.cpsc.ucalgary.ca) that keeps resetting.
 # 1. Retries + a low-speed cutoff in dnf.conf. These stay in the shipped
 #    /etc/dnf/dnf.conf on purpose; they only make dnf more patient for users too.
-# 2. For the build only, point baseos/appstream/crb at CentOS's own CDN instead
-#    of the metalink. The stock centos.repo is restored before `bootc container lint`.
+# 2. For the build only, point baseos/appstream/crb at the IS ZA mirror
+#    (ftp.as3741.net, the redirect target of ftp.is.co.za), falling back to
+#    CentOS's own CDN, instead of the metalink. The stock centos.repo is restored before `bootc container lint`.
 RUN printf '%s\n' retries=10 timeout=60 minrate=100k fastestmirror=True skip_if_unavailable=False \
       >> /etc/dnf/dnf.conf && \
     cp -a /etc/yum.repos.d/centos.repo /usr/share/centos.repo.dank-ws-orig && \
     for r in baseos:BaseOS appstream:AppStream crb:CRB; do \
-      sed -i "/^\[${r%%:*}\]/,/^\[/ s|^metalink=.*|baseurl=https://mirror.stream.centos.org/\$stream/${r#*:}/\$basearch/os/|" \
+      sed -i "/^\[${r%%:*}\]/,/^\[/ s|^metalink=.*|baseurl=https://ftp.as3741.net/mirror/centos-stream/\$stream/${r#*:}/\$basearch/os/ https://mirror.stream.centos.org/\$stream/${r#*:}/\$basearch/os/|" \
         /etc/yum.repos.d/centos.repo; \
     done && \
     grep -n '^baseurl=' /etc/yum.repos.d/centos.repo
@@ -83,10 +84,10 @@ RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/boot \
     dnf -y install epel-release dnf-plugins-core && \
-    # Build-time EPEL pin (like centos.repo above): the EPEL metalink also hands
-    # runners flaky mirrors. Restored before `bootc container lint`.
+    # Build-time EPEL pin (like centos.repo above): IS ZA mirror, then
+    # dl.fedoraproject.org, instead of the metalink that hands out flaky mirrors. Restored before `bootc container lint`.
     cp -a /etc/yum.repos.d/epel.repo /usr/share/epel.repo.dank-ws-orig && \
-    sed -i '/^\[epel\]/,/^\[/ { s|^metalink=.*|baseurl=https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/|; s|^mirrorlist=.*|baseurl=https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/| }' \
+    sed -i '/^\[epel\]/,/^\[/ { s|^metalink=.*|baseurl=https://ftp.as3741.net/mirror/fedora/fedora-epel/10/Everything/$basearch/ https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/|; s|^mirrorlist=.*|baseurl=https://ftp.as3741.net/mirror/fedora/fedora-epel/10/Everything/$basearch/ https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/| }' \
         /etc/yum.repos.d/epel.repo && \
     grep -n '^baseurl=' /etc/yum.repos.d/epel.repo && \
     dnf config-manager --set-enabled crb && \

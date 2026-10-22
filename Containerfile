@@ -83,6 +83,12 @@ RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/boot \
     dnf -y install epel-release dnf-plugins-core && \
+    # Build-time EPEL pin (like centos.repo above): the EPEL metalink also hands
+    # runners flaky mirrors. Restored before `bootc container lint`.
+    cp -a /etc/yum.repos.d/epel.repo /usr/share/epel.repo.dank-ws-orig && \
+    sed -i '/^\[epel\]/,/^\[/ { s|^metalink=.*|baseurl=https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/|; s|^mirrorlist=.*|baseurl=https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/| }' \
+        /etc/yum.repos.d/epel.repo && \
+    grep -n '^baseurl=' /etc/yum.repos.d/epel.repo && \
     dnf config-manager --set-enabled crb && \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
@@ -382,7 +388,8 @@ LABEL org.opencontainers.image.description="CentOS Stream 10 bootc image with ni
 LABEL org.opencontainers.image.source="${IMAGE_SOURCE}"
 LABEL io.github.kmf.dank-ws.dms-channel="${DMS_CHANNEL}"
 
-# Restore the stock CentOS repo file (build-time mirror pin, see top of file).
-RUN mv /usr/share/centos.repo.dank-ws-orig /etc/yum.repos.d/centos.repo
+# Restore the stock CentOS and EPEL repo files (build-time mirror pin, see top of file).
+RUN mv /usr/share/centos.repo.dank-ws-orig /etc/yum.repos.d/centos.repo && \
+    mv /usr/share/epel.repo.dank-ws-orig /etc/yum.repos.d/epel.repo
 
 RUN bootc container lint --fatal-warnings

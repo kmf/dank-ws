@@ -56,6 +56,14 @@ ARG IMAGE_NAME="dank-ws"
 ARG IMAGE_VENDOR="kmf"
 ARG IMAGE_SOURCE=""
 
+# Make dnf tolerate flaky CentOS Stream mirrors (CI saw repeated
+# "Cannot download repomd.xml" from single bad mirrors). Retries and a
+# low-speed cutoff make dnf move on to the next mirror instead of failing.
+# These settings stay in the shipped /etc/dnf/dnf.conf; they are harmless
+# (and useful) for users too.
+RUN printf '%s\n' retries=10 timeout=60 minrate=100k fastestmirror=True skip_if_unavailable=False \
+      >> /etc/dnf/dnf.conf
+
 # Homebrew system files (units, profile.d, limits, /usr/share/homebrew.tar.zst)
 COPY --from=brew /system_files /
 

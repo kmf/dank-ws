@@ -104,6 +104,8 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install -x alacritty niri ghostty kitty greetd cava kf6-kimageformats && \
     dnf -y install wl-clipboard && \
     dnf -y install xwayland-satellite && \
+    dnf -y install dux-files && rpm -q dux-files && \
+    dnf list --installed dux-files | grep -q danklinux && \
     dnf list --installed greetd cava gtk4-layer-shell xwayland-satellite ghostty && \
     for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q danklinux || exit 1; done && \
     dnf list --installed ghostty | grep -q dank-ws-copr && \
@@ -319,6 +321,27 @@ RUN --mount=type=tmpfs,dst=/var \
     find /usr /etc -xdev -type f -newer /tmp/tailscale-step-start -print0 | \
         xargs -0 -r sh -c 'for f; do getfattr -n user.component "$f" >/dev/null 2>&1 || \
             { setfattr -n user.component -v tailscale "$f" && echo "tailscale: $f"; }; done' sh && \
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy
+
+# cosign CLI: not packaged in EPEL 10 or ublue-os/packages, so install the official sigstore
+# release RPM, pinned by version and verified against the release's sha256 checksums.
+ARG COSIGN_VERSION=3.1.4
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    case "$(arch)" in \
+        x86_64) sum=02fd4fe524932ccba09f7762fce76be35e5570d2023a1093cce776eefc6b62df ;; \
+        aarch64) sum=51232128175fd080ae6fd3bb095901e5607d42737eefa9bbb3a4f76c20107cc8 ;; \
+        *) echo "cosign: unsupported arch $(arch)" && exit 1 ;; \
+    esac && \
+    rpm="cosign-${COSIGN_VERSION}-1.$(arch).rpm" && \
+    curl -fsSL --retry 5 -o "/tmp/${rpm}" \
+        "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/${rpm}" && \
+    echo "${sum}  /tmp/${rpm}" | sha256sum -c - && \
+    dnf -y install "/tmp/${rpm}" && \
+    cosign version && \
+    dnf clean all && \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 

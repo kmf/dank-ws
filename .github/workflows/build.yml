@@ -238,5 +238,5 @@ jobs:
           sudo podman rmi -f $(sudo podman images --filter "reference=${IMAGE_REF}" -q) 2>/dev/null || true
           sudo podman image prune -f || true
           sudo podman system prune -f --filter "until=72h" || true
-          rm -f /tmp/digests /tmp/digestfile
+          sudo rm -f /tmp/digests /tmp/digestfile
           df -h /var/lib/containers || true

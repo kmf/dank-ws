@@ -134,7 +134,9 @@ jobs:
             echo "::group::Build ${IMAGE_NAME} (DMS ${channel})"
             # Retry once: transient mirror failures are the usual cause.
             for attempt in 1 2; do
+            # bifrost: Docker's FORWARD DROP policy blocks podman's bridge, so build on the host network
             sudo podman build \
+              $( [ "${RUNNER_ENVIRONMENT}" = self-hosted ] && echo --network=host ) \
               --pull=newer \
               --layers \
               --build-arg BASE_TAG="${BASE_TAG}" \

@@ -104,6 +104,8 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install -x alacritty niri ghostty kitty greetd cava kf6-kimageformats && \
     dnf -y install wl-clipboard && \
     dnf -y install xwayland-satellite && \
+    dnf -y install dux-files && rpm -q dux-files && \
+    dnf list --installed dux-files | grep -q danklinux && \
     dnf list --installed greetd cava gtk4-layer-shell xwayland-satellite ghostty && \
     for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q danklinux || exit 1; done && \
     dnf list --installed ghostty | grep -q dank-ws-copr && \

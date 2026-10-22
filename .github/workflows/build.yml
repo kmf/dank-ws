@@ -116,6 +116,8 @@ jobs:
         run: |
           for channel in ${DMS_CHANNELS}; do
             echo "::group::Build ${IMAGE_NAME} (DMS ${channel})"
+            # Retry once: transient mirror failures are the usual cause.
+            for attempt in 1 2; do
             sudo podman build \
               --pull=newer \
               --layers \
@@ -127,7 +129,11 @@ jobs:
               $( [ "${channel}" = rolling ] && [ -n "${DMS_GIT_FINGERPRINT}" ] && echo --label "io.github.kmf.dank-ws.dms-git-fingerprint=${DMS_GIT_FINGERPRINT}" ) \
               --build-arg IMAGE_SOURCE="${{ github.server_url }}/${{ github.repository }}" \
               --tag "${IMAGE_REF}:${channel}" \
-              -f Containerfile .
+              -f Containerfile . && break
+            [ "${attempt}" = 2 ] && exit 1
+            echo "::warning::podman build failed (attempt ${attempt}), retrying in 60s"
+            sleep 60
+            done
             echo "::endgroup::"
           done
 

@@ -104,8 +104,6 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install -x alacritty niri ghostty kitty greetd cava kf6-kimageformats && \
     dnf -y install wl-clipboard && \
     dnf -y install xwayland-satellite && \
-    dnf -y install dux-files && rpm -q dux-files && \
-    dnf list --installed dux-files | grep -q danklinux && \
     dnf list --installed greetd cava gtk4-layer-shell xwayland-satellite ghostty && \
     for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q danklinux || exit 1; done && \
     dnf list --installed ghostty | grep -q dank-ws-copr && \
@@ -282,6 +280,10 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install --enablerepo=epel \
         "${QUICKSHELL}" matugen cliphist danksearch dgop dankcalendar-git dms dms-greeter && \
     rpm -q dms dms-cli "${QUICKSHELL}" && \
+    # dux-files needs quickshell; install it after the channel's quickshell so
+    # rolling doesn't pull stable quickshell (conflicts with quickshell-git).
+    dnf -y install dux-files && rpm -q dux-files "${QUICKSHELL}" && \
+    dnf list --installed dux-files | grep -q danklinux && \
     systemctl enable greetd.service && \
     test -f /usr/lib/systemd/user/dms.service && \
     { rpm -q attr >/dev/null || dnf -y install attr; } && \

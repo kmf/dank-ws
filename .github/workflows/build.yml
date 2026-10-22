@@ -24,8 +24,7 @@ on:
 
 env:
   BASE_TAG: c10s
-  # DMS channels (see README "Choosing a DMS channel"). Each job builds both, sharing one build
-  # cache so every layer below the DMS step is byte-identical between :stable and :rolling.
+  # DMS channels (see README "Choosing a DMS channel"). Each image x channel pair is its own job.
   DMS_CHANNELS: stable rolling
   # :latest (and the plain date tag) follow this channel; it is what the image always used.
   DEFAULT_CHANNEL: rolling
@@ -42,6 +41,7 @@ jobs:
     outputs:
       channels: ${{ steps.plan.outputs.channels }}
       skip: ${{ steps.plan.outputs.skip }}
+      matrix: ${{ steps.plan.outputs.matrix }}
       dms_git_fingerprint: ${{ steps.plan.outputs.fingerprint }}
     steps:
       - name: Decide channels and check avengemedia/dms-git for changes
@@ -55,10 +55,19 @@ jobs:
             | jq -r '[.items[] | select(.builds.latest_succeeded != null) | "\(.name):\(.builds.latest_succeeded.id)"] | sort | join(",")')" || fp=""
           echo "fingerprint=${fp}" >> "${GITHUB_OUTPUT}"
           echo "dms-git COPR fingerprint: ${fp:-<unavailable>}"
+          emit_matrix() {
+            # image_name x channel, one build job per pair
+            jq -cn --arg ch "$1" '{include: [[
+              {image_name: "dank-ws", enable_nvidia: "0", akmods_nvidia_image: "scratch"},
+              {image_name: "dank-ws-nvidia", enable_nvidia: "1", akmods_nvidia_image: "ghcr.io/ublue-os/akmods-nvidia-open:centos-10"}
+            ][] as $i | ($ch | split(" ") | map(select(. != "")))[] as $c | $i + {channel: $c}]}' | sed 's/^/matrix=/' >> "${GITHUB_OUTPUT}"
+          }
           if [ "${NIGHTLY}" != "true" ]; then
-            echo "channels=${DMS_CHANNELS}" >> "${GITHUB_OUTPUT}"; echo "skip=false" >> "${GITHUB_OUTPUT}"; exit 0
+            echo "channels=${DMS_CHANNELS}" >> "${GITHUB_OUTPUT}"; echo "skip=false" >> "${GITHUB_OUTPUT}"
+            emit_matrix "${DMS_CHANNELS}"; exit 0
           fi
           echo "channels=rolling" >> "${GITHUB_OUTPUT}"
+          emit_matrix rolling
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           skip=true
           for img in dank-ws dank-ws-nvidia; do
@@ -71,24 +80,17 @@ jobs:
           [ "${skip}" = true ] && echo "::notice::avengemedia/dms-git unchanged since the last :rolling build, skipping" || true
 
   build_push:
-    name: Build and push ${{ matrix.image_name }}
+    name: Build ${{ matrix.image_name }} (${{ matrix.channel }})
     needs: plan
     if: needs.plan.outputs.skip != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - image_name: dank-ws
-            enable_nvidia: "0"
-            akmods_nvidia_image: scratch
-          - image_name: dank-ws-nvidia
-            enable_nvidia: "1"
-            akmods_nvidia_image: ghcr.io/ublue-os/akmods-nvidia-open:centos-10
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     env:
       IMAGE_NAME: ${{ matrix.image_name }}
-      DMS_CHANNELS: ${{ needs.plan.outputs.channels }}
+      DMS_CHANNEL: ${{ matrix.channel }}
       DMS_GIT_FINGERPRINT: ${{ needs.plan.outputs.dms_git_fingerprint }}
       PUBLISH: ${{ github.event_name != 'pull_request' && inputs.dry_run != true }}
       ENABLE_NVIDIA: ${{ matrix.enable_nvidia }}
@@ -112,10 +114,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Build image (both DMS channels)
+      - name: Build image (DMS ${{ matrix.channel }})
         run: |
-          for channel in ${DMS_CHANNELS}; do
+          channel="${DMS_CHANNEL}"; {
             echo "::group::Build ${IMAGE_NAME} (DMS ${channel})"
+            # Retry once: transient mirror failures are the usual cause.
+            for attempt in 1 2; do
             sudo podman build \
               --pull=newer \
               --layers \
@@ -127,18 +131,22 @@ jobs:
               $( [ "${channel}" = rolling ] && [ -n "${DMS_GIT_FINGERPRINT}" ] && echo --label "io.github.kmf.dank-ws.dms-git-fingerprint=${DMS_GIT_FINGERPRINT}" ) \
               --build-arg IMAGE_SOURCE="${{ github.server_url }}/${{ github.repository }}" \
               --tag "${IMAGE_REF}:${channel}" \
-              -f Containerfile .
+              -f Containerfile . && break
+            [ "${attempt}" = 2 ] && exit 1
+            echo "::warning::podman build failed (attempt ${attempt}), retrying in 60s"
+            sleep 60
+            done
             echo "::endgroup::"
-          done
+          }
 
       - name: Rechunk image by package
         # Re-split the image into content-addressed chunks grouped by package (as Bluefin does),
         # so unchanged packages keep identical layer digests across fresh, cache-less CI builds
         # and an update only downloads the chunks whose packages changed (e.g. the avengemedia
-        # COPR / DMS stack gets its own chunks). Both channels are built from the same cached
-        # lower layers, so switching :stable <-> :rolling only downloads the DMS chunks.
+        # COPR / DMS stack gets its own chunks), so switching :stable <-> :rolling mostly
+        # downloads only the DMS chunks.
         run: |
-          for channel in ${DMS_CHANNELS}; do
+          channel="${DMS_CHANNEL}"; {
             sudo podman run --rm --privileged \
               -v /var/lib/containers:/var/lib/containers \
               --entrypoint /usr/bin/rpm-ostree \
@@ -151,14 +159,8 @@ jobs:
               sudo podman tag "${IMAGE_REF}:${channel}" "${IMAGE_REF}:${DEFAULT_TAG}" "${IMAGE_REF}:${BUILD_DATE}"
             fi
             sudo podman image inspect "${IMAGE_REF}:${channel}" --format "${channel}: {{len .RootFS.Layers}} layers, dms-git fingerprint: {{index .Labels \"io.github.kmf.dank-ws.dms-git-fingerprint\"}}"
-          done
+          }
           sudo podman image prune -f >/dev/null || true
-          # Layers shared by the two channels (everything except the DMS chunks)
-          [ "${DMS_CHANNELS}" = "stable rolling" ] || exit 0
-          sudo podman image inspect "${IMAGE_REF}:stable" --format '{{range .RootFS.Layers}}{{println .}}{{end}}' | sort > /tmp/stable.layers
-          sudo podman image inspect "${IMAGE_REF}:rolling" --format '{{range .RootFS.Layers}}{{println .}}{{end}}' | sort > /tmp/rolling.layers
-          echo "layers shared by stable and rolling: $(comm -12 /tmp/stable.layers /tmp/rolling.layers | grep -c .)"
-          echo "layers only in rolling: $(comm -13 /tmp/stable.layers /tmp/rolling.layers | grep -c .)"
 
       - name: Login to GitHub Container Registry
         if: env.PUBLISH == 'true'
@@ -172,10 +174,10 @@ jobs:
         id: push
         run: |
           tags=""
-          for channel in ${DMS_CHANNELS}; do
+          channel="${DMS_CHANNEL}"; {
             tags="${tags} ${channel} ${channel}-${BUILD_DATE}"
             if [ "${channel}" = "${DEFAULT_CHANNEL}" ]; then tags="${tags} ${DEFAULT_TAG} ${BUILD_DATE}"; fi
-          done
+          }
           : > /tmp/digests
           for tag in ${tags}; do
             ok=0

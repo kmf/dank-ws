@@ -34,6 +34,9 @@ env:
   # :latest (and the plain date tag) follow this channel; it is what the image always used.
   DEFAULT_CHANNEL: rolling
   DEFAULT_TAG: latest
+  # Image:channel pairs actually built (space-separated). Rolling-only for now; to re-enable
+  # the rest, set: "dank-ws:stable dank-ws:rolling dank-ws-nvidia:stable dank-ws-nvidia:rolling"
+  ENABLED_BUILDS: dank-ws:rolling
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -62,10 +65,11 @@ jobs:
           echo "dms-git COPR fingerprint: ${fp:-<unavailable>}"
           emit_matrix() {
             # image_name x channel, one build job per pair
-            jq -cn --arg ch "$1" '{include: [[
+            jq -cn --arg ch "$1" --arg en "${ENABLED_BUILDS}" '{include: [[
               {image_name: "dank-ws", enable_nvidia: "0", akmods_nvidia_image: "scratch"},
               {image_name: "dank-ws-nvidia", enable_nvidia: "1", akmods_nvidia_image: "ghcr.io/ublue-os/akmods-nvidia-open:centos-10"}
-            ][] as $i | ($ch | split(" ") | map(select(. != "")))[] as $c | $i + {channel: $c}]}' | sed 's/^/matrix=/' >> "${GITHUB_OUTPUT}"
+            ][] as $i | ($ch | split(" ") | map(select(. != "")))[] as $c | $i + {channel: $c}]
+              | map(select(("\(.image_name):\(.channel)") as $k | ($en | split(" ") | index($k)) != null))}' | sed 's/^/matrix=/' >> "${GITHUB_OUTPUT}"
           }
           if [ "${NIGHTLY}" != "true" ]; then
             echo "channels=${DMS_CHANNELS}" >> "${GITHUB_OUTPUT}"; echo "skip=false" >> "${GITHUB_OUTPUT}"
@@ -76,6 +80,7 @@ jobs:
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           skip=true
           for img in dank-ws dank-ws-nvidia; do
+            case " ${ENABLED_BUILDS} " in *" ${img}:rolling "*) ;; *) continue ;; esac
             cur="$(skopeo inspect --no-tags "docker://ghcr.io/${owner}/${img}:rolling" 2>/dev/null \
               | jq -r '.Labels["io.github.kmf.dank-ws.dms-git-fingerprint"] // ""')" || cur=""
             echo "${img}:rolling fingerprint: ${cur:-<none>}"

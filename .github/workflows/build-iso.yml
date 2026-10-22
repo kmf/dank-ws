@@ -11,16 +11,17 @@ on:
       variant:
         description: Which image to build an installer ISO for
         type: choice
-        options: [dank-ws, dank-ws-nvidia, both]
+        # Rolling-only for now; re-enable with: [dank-ws, dank-ws-nvidia, both]
+        options: [dank-ws]
         default: dank-ws
       tag:
         description: Image tag on GHCR to embed in the ISO
         type: string
-        default: stable
+        default: rolling
       origin_tag:
         description: Tag the installed system follows for updates (bootc origin set in %post)
         type: string
-        default: stable
+        default: rolling
       publish_release:
         description: Split the ISO into <2 GiB parts and attach them to a GitHub release
         type: boolean

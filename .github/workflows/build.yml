@@ -21,6 +21,11 @@ on:
         description: "Build only, do not push or sign anything"
         type: boolean
         default: false
+      runner:
+        description: "Where to build: bifrost (self-hosted) or github (GitHub-hosted, e.g. when bifrost is offline)"
+        type: choice
+        options: [bifrost, github]
+        default: bifrost
 
 env:
   BASE_TAG: c10s
@@ -29,6 +34,9 @@ env:
   # :latest (and the plain date tag) follow this channel; it is what the image always used.
   DEFAULT_CHANNEL: rolling
   DEFAULT_TAG: latest
+  # Image:channel pairs actually built (space-separated). Rolling-only for now; to re-enable
+  # the rest, set: "dank-ws:stable dank-ws:rolling dank-ws-nvidia:stable dank-ws-nvidia:rolling"
+  ENABLED_BUILDS: dank-ws:rolling
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -57,10 +65,11 @@ jobs:
           echo "dms-git COPR fingerprint: ${fp:-<unavailable>}"
           emit_matrix() {
             # image_name x channel, one build job per pair
-            jq -cn --arg ch "$1" '{include: [[
+            jq -cn --arg ch "$1" --arg en "${ENABLED_BUILDS}" '{include: [[
               {image_name: "dank-ws", enable_nvidia: "0", akmods_nvidia_image: "scratch"},
               {image_name: "dank-ws-nvidia", enable_nvidia: "1", akmods_nvidia_image: "ghcr.io/ublue-os/akmods-nvidia-open:centos-10"}
-            ][] as $i | ($ch | split(" ") | map(select(. != "")))[] as $c | $i + {channel: $c}]}' | sed 's/^/matrix=/' >> "${GITHUB_OUTPUT}"
+            ][] as $i | ($ch | split(" ") | map(select(. != "")))[] as $c | $i + {channel: $c}]
+              | map(select(("\(.image_name):\(.channel)") as $k | ($en | split(" ") | index($k)) != null))}' | sed 's/^/matrix=/' >> "${GITHUB_OUTPUT}"
           }
           if [ "${NIGHTLY}" != "true" ]; then
             echo "channels=${DMS_CHANNELS}" >> "${GITHUB_OUTPUT}"; echo "skip=false" >> "${GITHUB_OUTPUT}"
@@ -71,6 +80,7 @@ jobs:
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           skip=true
           for img in dank-ws dank-ws-nvidia; do
+            case " ${ENABLED_BUILDS} " in *" ${img}:rolling "*) ;; *) continue ;; esac
             cur="$(skopeo inspect --no-tags "docker://ghcr.io/${owner}/${img}:rolling" 2>/dev/null \
               | jq -r '.Labels["io.github.kmf.dank-ws.dms-git-fingerprint"] // ""')" || cur=""
             echo "${img}:rolling fingerprint: ${cur:-<none>}"
@@ -83,7 +93,9 @@ jobs:
     name: Build ${{ matrix.image_name }} (${{ matrix.channel }})
     needs: plan
     if: needs.plan.outputs.skip != 'true'
-    runs-on: ubuntu-24.04
+    # Self-hosted bifrost for trusted events only; fork PRs (and runner=github) use GitHub-hosted.
+    # Actions has no automatic fallback: if bifrost is offline, dispatch with runner=github.
+    runs-on: ${{ ((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && inputs.runner != 'github') && fromJSON('["self-hosted","bifrost"]') || 'ubuntu-24.04' }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -109,7 +121,14 @@ jobs:
           echo "BUILD_DATE=$(date -u +%Y%m%d)" >> "${GITHUB_ENV}"
 
       - name: Maximize build space
+        if: runner.environment == 'github-hosted'
         uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6 # v10
+
+      - name: Clean leftovers from previous self-hosted builds
+        if: runner.environment == 'self-hosted'
+        run: |
+          sudo podman system prune -af --filter "until=72h" || true
+          df -h /var/lib/containers || true
 
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -120,7 +139,9 @@ jobs:
             echo "::group::Build ${IMAGE_NAME} (DMS ${channel})"
             # Retry once: transient mirror failures are the usual cause.
             for attempt in 1 2; do
+            # bifrost: Docker's FORWARD DROP policy blocks podman's bridge, so build on the host network
             sudo podman build \
+              $( [ "${RUNNER_ENVIRONMENT}" = self-hosted ] && echo --network=host ) \
               --pull=newer \
               --layers \
               --build-arg BASE_TAG="${BASE_TAG}" \
@@ -209,3 +230,13 @@ jobs:
           for digest in ${DIGESTS}; do
             cosign sign -y --key env://COSIGN_PRIVATE_KEY "${IMAGE_REF}@${digest}"
           done
+
+      - name: Prune images (self-hosted)
+        if: always() && runner.environment == 'self-hosted'
+        run: |
+          # Keep base/layer cache for a few days, drop this build's large outputs.
+          sudo podman rmi -f $(sudo podman images --filter "reference=${IMAGE_REF}" -q) 2>/dev/null || true
+          sudo podman image prune -f || true
+          sudo podman system prune -f --filter "until=72h" || true
+          rm -f /tmp/digests /tmp/digestfile
+          df -h /var/lib/containers || true

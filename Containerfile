@@ -280,10 +280,12 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install --enablerepo=epel \
         "${QUICKSHELL}" matugen cliphist danksearch dgop dankcalendar-git dms dms-greeter && \
     rpm -q dms dms-cli "${QUICKSHELL}" && \
-    # dux-files needs quickshell; install it after the channel's quickshell so
+    # dux-files-git needs quickshell; install it after the channel's quickshell so
     # rolling doesn't pull stable quickshell (conflicts with quickshell-git).
-    dnf -y install dux-files && rpm -q dux-files "${QUICKSHELL}" && \
-    dnf list --installed dux-files | grep -q danklinux && \
+    # -git build includes upstream 2830037 (Qt 6.10 'boolean' QML property fix).
+    dnf -y install dux-files-git && rpm -q dux-files-git "${QUICKSHELL}" && \
+    ! rpm -q dux-files && \
+    dnf list --installed dux-files-git | grep -q danklinux && \
     systemctl enable greetd.service && \
     test -f /usr/lib/systemd/user/dms.service && \
     { rpm -q attr >/dev/null || dnf -y install attr; } && \

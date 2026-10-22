@@ -128,6 +128,10 @@ jobs:
         if: runner.environment == 'self-hosted'
         run: |
           sudo podman system prune -af --filter "until=72h" || true
+          # a previous job's ghcr login (expired GITHUB_TOKEN) persists on the runner and makes
+          # anonymous pulls of public base images fail with 403; start logged out
+          sudo podman logout ghcr.io 2>/dev/null || true
+          docker logout ghcr.io 2>/dev/null || true
           df -h /var/lib/containers || true
 
       - name: Checkout
@@ -239,4 +243,6 @@ jobs:
           sudo podman image prune -f || true
           sudo podman system prune -f --filter "until=72h" || true
           sudo rm -f /tmp/digests /tmp/digestfile
+          sudo podman logout ghcr.io 2>/dev/null || true
+          docker logout ghcr.io 2>/dev/null || true
           df -h /var/lib/containers || true

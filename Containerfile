@@ -103,6 +103,8 @@ RUN --mount=type=tmpfs,dst=/var \
         https://download.docker.com/linux/centos/docker-ce.repo && \
     dnf -y install -x alacritty niri ghostty kitty greetd cava kf6-kimageformats && \
     dnf -y install wl-clipboard && \
+    dnf -y install wtype && \
+    dnf list --installed wtype | grep -q dank-ws-copr && test -x /usr/bin/wtype && \
     dnf -y install xwayland-satellite && \
     dnf list --installed greetd cava gtk4-layer-shell xwayland-satellite ghostty && \
     for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q danklinux || exit 1; done && \
@@ -354,8 +356,8 @@ RUN --mount=type=tmpfs,dst=/var \
 # x86_64 only (upstream ships no aarch64 RPM), so other arches skip it. Its RPM Requires
 # (alsa-lib, curl, pipewire-alsa) come from BaseOS/AppStream; vulkan-loader is added for the
 # `voxtype setup gpu` Vulkan backend. wl-clipboard is already installed above (clipboard fallback).
-# wtype / dotool / ydotool are not packaged for EL10 (EPEL 10, our COPRs), so typing falls back
-# to the clipboard until one of them is available.
+# wtype (voxtype's Wayland typing backend) is not in EPEL 10, so it comes from kmf/dank-ws-copr
+# in the base package layer above; dotool / ydotool are not packaged for EL10.
 ARG VOXTYPE_VERSION=1.1.1
 RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \

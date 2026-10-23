@@ -1,0 +1,2 @@
+# dank-ws: voxtype push-to-talk daemon starts with the graphical session (niri) for every user.
+enable voxtype.service

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 1Password desktop app (official RPM, https://downloads.1password.com/linux/rpm/stable/), both image
+# 1Password desktop app + 1password-cli (official RPMs, https://downloads.1password.com/linux/rpm/stable/), both image
 # variants. Same idea as Universal Blue's 1Password installer (ublue-os/bling installers/1password.sh),
 # adapted to a dnf container build:
 #   - the RPM installs to /opt/1Password, but /opt is /var/opt on a bootc system (not part of the
@@ -16,7 +16,8 @@
 set -xeuo pipefail
 
 GID_ONEPASSWORD=1500       # same GID Universal Blue uses
-GID_ONEPASSWORD_MCP=1700   # 1600 is Universal Blue's onepassword-cli GID; keep it free
+GID_ONEPASSWORD_MCP=1700
+GID_ONEPASSWORD_CLI=1600   # same GID Universal Blue uses for onepassword-cli
 APP_DIR=/usr/lib/1Password
 COMPONENT=1password
 
@@ -24,6 +25,7 @@ rpm -q attr >/dev/null || dnf -y install attr
 
 # Fixed-GID groups BEFORE the install, so the RPM's post-install finds them and does not groupadd its own.
 getent group onepassword >/dev/null || groupadd -g "${GID_ONEPASSWORD}" onepassword
+getent group onepassword-cli >/dev/null || groupadd -g "${GID_ONEPASSWORD_CLI}" onepassword-cli
 getent group onepassword-mcp >/dev/null || groupadd -g "${GID_ONEPASSWORD_MCP}" onepassword-mcp
 test "$(getent group onepassword | cut -d: -f3)" = "${GID_ONEPASSWORD}"
 test "$(getent group onepassword-mcp | cut -d: -f3)" = "${GID_ONEPASSWORD_MCP}"
@@ -40,7 +42,7 @@ gpgcheck=1
 gpgkey=https://downloads.1password.com/linux/keys/1password.asc
 EOT
 rpm --import https://downloads.1password.com/linux/keys/1password.asc
-dnf -y --setopt=retries=5 --enablerepo=1password install 1password
+dnf -y --setopt=retries=5 --enablerepo=1password install 1password 1password-cli
 sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/1password.repo
 grep -qx 'enabled=0' /etc/yum.repos.d/1password.repo
 grep -qx 'gpgcheck=1' /etc/yum.repos.d/1password.repo
@@ -72,6 +74,7 @@ cat > /usr/lib/sysusers.d/dank-ws-1password.conf <<EOT
 # ${APP_DIR} are chgrp'd to these numbers at image build time.
 g onepassword     ${GID_ONEPASSWORD}
 g onepassword-mcp ${GID_ONEPASSWORD_MCP}
+g onepassword-cli ${GID_ONEPASSWORD_CLI}
 EOT
 
 # Wayland. 1Password 8.12 is built on Electron >= 38, which ignores ELECTRON_OZONE_PLATFORM_HINT (removed
@@ -106,13 +109,18 @@ grep -qx 'Exec=/usr/bin/1password %U' /usr/share/applications/com.onepassword.On
 if grep -rIl '^Exec=/opt/1Password' /usr/share/applications/; then exit 1; fi
 if find /usr /etc -xdev -lname '/opt/1Password*' | grep .; then exit 1; fi
 test ! -e /opt/1Password
-rpm -q 1password
+rpm -q 1password 1password-cli
+# 1Password CLI (official RPM, same repo): /usr/bin/op, setgid onepassword-cli for desktop-app integration.
+test -x /usr/bin/op
+test -g /usr/bin/op && test "$(stat -c '%g' /usr/bin/op)" = "${GID_ONEPASSWORD_CLI}"
+op --version
 
 # Own rechunk component: the whole app dir, the RPM's files outside /opt, and the files written above.
 # The rpmdb and /etc/{passwd,group,...} are left alone: the DMS step tags those (dms-state).
 {
     find "${APP_DIR}" -type f
     rpm -ql 1password | grep -v '^/opt/'
+    rpm -ql 1password-cli
     find /usr/lib/tmpfiles.d/dank-ws-1password.conf /usr/lib/sysusers.d/dank-ws-1password.conf \
          /usr/bin/1password /etc/yum.repos.d/1password.repo /etc/1password /usr/share/doc/1password \
          /usr/share/polkit-1/actions/com.1password.1Password.policy -type f 2>/dev/null

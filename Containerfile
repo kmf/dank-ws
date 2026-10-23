@@ -349,6 +349,31 @@ RUN --mount=type=tmpfs,dst=/var \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 
+# voxtype (push-to-talk voice typing): official upstream release RPM, pinned by version and sha256
+# (upstream's SHA256SUMS.txt does not list the RPM, so the sum is of the v1.1.1 release asset).
+# x86_64 only (upstream ships no aarch64 RPM), so other arches skip it. Its RPM Requires
+# (alsa-lib, curl, pipewire-alsa) come from BaseOS/AppStream; vulkan-loader is added for the
+# `voxtype setup gpu` Vulkan backend. wl-clipboard is already installed above (clipboard fallback).
+# wtype / dotool / ydotool are not packaged for EL10 (EPEL 10, our COPRs), so typing falls back
+# to the clipboard until one of them is available.
+ARG VOXTYPE_VERSION=1.1.1
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    if [ "$(arch)" != x86_64 ]; then echo "voxtype: no $(arch) RPM upstream, skipping"; exit 0; fi && \
+    sum=5d0704d2f8bff4b02ca7d6ace1eab20caf8b3bbbc137f3e1a268af5021509872 && \
+    rpm="voxtype-${VOXTYPE_VERSION}-1.x86_64.rpm" && \
+    curl -fsSL --retry 5 -o "/tmp/${rpm}" \
+        "https://github.com/peteonrails/voxtype/releases/download/v${VOXTYPE_VERSION}/${rpm}" && \
+    echo "${sum}  /tmp/${rpm}" | sha256sum -c - && \
+    dnf -y install "/tmp/${rpm}" pipewire-alsa alsa-lib vulkan-loader && \
+    rpm -q voxtype pipewire-alsa wl-clipboard && \
+    test -f /usr/lib/systemd/user/voxtype.service && \
+    voxtype --version && \
+    dnf clean all && \
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy
+
 # Config files (greetd config, greeter user/cache dir). Copied AFTER the
 # package install so our /etc/greetd/config.toml wins over the packaged one.
 COPY system_files/ /

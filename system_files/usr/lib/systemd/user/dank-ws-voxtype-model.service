@@ -1,0 +1,11 @@
+[Unit]
+Description=Download the default voxtype model (base.en) on first login
+Documentation=https://github.com/kmf/dank-ws
+After=network-online.target
+Before=voxtype.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/dank-ws-voxtype-model
+RemainAfterExit=yes
+TimeoutStartSec=15min

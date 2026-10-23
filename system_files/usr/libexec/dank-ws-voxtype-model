@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+# First-login helper for voxtype: download the default Whisper model (base.en, ~142 MB)
+# into ~/.local/share/voxtype/models when the user has no Whisper model yet, so the
+# voxtype daemon (enabled by default) can start. Skips if any ggml model is present.
+set -euo pipefail
+models="${XDG_DATA_HOME:-$HOME/.local/share}/voxtype/models"
+if compgen -G "${models}/ggml-*.bin" | grep -qv 'ggml-silero-vad.bin'; then
+    exit 0
+fi
+exec /usr/bin/voxtype setup --download --model base.en --quiet --no-post-install

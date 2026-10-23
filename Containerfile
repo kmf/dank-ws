@@ -425,6 +425,18 @@ RUN sed -i \
     . /usr/lib/os-release && [ "$ID" = centos ] && [ "$VERSION_ID" = 10 ] && [ "$NAME" = "Dank Workstation" ] && \
     [ "$ID_LIKE" = "centos rhel fedora" ] && [ "$PRETTY_NAME" = "Dank Workstation 10 (Coughlan)" ]
 
+# voxtype: enabled for every user (WantedBy=graphical-session.target, which niri-session brings up),
+# the same way as dms.service. The 80-dank-ws.preset keeps `systemctl --user preset` in agreement.
+# A first-login oneshot (dank-ws-voxtype-model.service) downloads base.en if the user has no model.
+# The shipped /etc/voxtype/config.toml has the evdev hotkey disabled, so no `input` group is needed;
+# bind a niri key to `voxtype record toggle` (or start/stop).
+RUN if [ -f /usr/lib/systemd/user/voxtype.service ]; then \
+        systemctl --global enable voxtype.service && \
+        systemctl --global is-enabled voxtype.service && \
+        bash -n /usr/libexec/dank-ws-voxtype-model && \
+        rpm -q wtype; \
+    else rm -f /usr/lib/systemd/user/voxtype.service.d/10-dank-ws.conf; fi
+
 RUN systemctl enable flatpak-preinstall.service dank-ws-docker-group.service dank-ws-wired-autoconnect.service && \
     test -x /usr/libexec/dank-ws-wired-autoconnect && bash -n /usr/libexec/dank-ws-wired-autoconnect && \
     systemctl is-enabled dank-ws-wired-autoconnect.service && \

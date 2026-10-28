@@ -376,6 +376,33 @@ RUN --mount=type=tmpfs,dst=/var \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 
+# tabctl (browser tab controller: list/switch/close/open tabs over D-Bus) + tabctl-mediator (its
+# native-messaging host, launched by the browser extension): upstream release tarball with the two
+# static Go binaries, pinned by version and per-arch sha256, copied into /usr/bin (no symlinks).
+# `tabctl install` finds the mediator next to itself and writes the per-user native-messaging
+# manifests (~/.mozilla, ~/.config/<browser>) pointing at /usr/bin/tabctl-mediator; run it once
+# per user, then install the browser extension (see `tabctl install` output) and restart the browser.
+ARG TABCTL_VERSION=2.3.1
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    case "$(arch)" in \
+        x86_64) tarch=amd64; sum=6f5999f9b16aae28c368dc157362a9d562df959991f2f1da31fcdbcf2a568319 ;; \
+        aarch64) tarch=arm64; sum=f4d5c4d5b69a0fc0e074ecda0cbbf1292b3f90372e129da2b0524b526bbe49b1 ;; \
+        *) echo "tabctl: no $(arch) release upstream, skipping"; exit 0 ;; \
+    esac && \
+    tgz="tabctl-linux-${tarch}-v${TABCTL_VERSION}.tar.gz" && \
+    curl -fsSL --retry 5 -o "/tmp/${tgz}" \
+        "https://github.com/slastra/tabctl/releases/download/v${TABCTL_VERSION}/${tgz}" && \
+    echo "${sum}  /tmp/${tgz}" | sha256sum -c - && \
+    mkdir /tmp/tabctl && tar -xzf "/tmp/${tgz}" -C /tmp/tabctl && \
+    install -m 0755 "/tmp/tabctl/tabctl-linux-${tarch}" /usr/bin/tabctl && \
+    install -m 0755 "/tmp/tabctl/tabctl-mediator-linux-${tarch}" /usr/bin/tabctl-mediator && \
+    test -x /usr/bin/tabctl && test -x /usr/bin/tabctl-mediator && \
+    tabctl --version | grep -qF "${TABCTL_VERSION}" && \
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy
+
 # Config files (greetd config, greeter user/cache dir). Copied AFTER the
 # package install so our /etc/greetd/config.toml wins over the packaged one.
 COPY system_files/ /

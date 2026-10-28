@@ -379,9 +379,13 @@ RUN --mount=type=tmpfs,dst=/var \
 # tabctl (browser tab controller: list/switch/close/open tabs over D-Bus) + tabctl-mediator (its
 # native-messaging host, launched by the browser extension): upstream release tarball with the two
 # static Go binaries, pinned by version and per-arch sha256, copied into /usr/bin (no symlinks).
-# `tabctl install` finds the mediator next to itself and writes the per-user native-messaging
-# manifests (~/.mozilla, ~/.config/<browser>) pointing at /usr/bin/tabctl-mediator; run it once
-# per user, then install the browser extension (see `tabctl install` output) and restart the browser.
+# Upstream only writes per-user native-messaging manifests (`tabctl install`), so to work out of the
+# box the build runs `tabctl install` against a scratch HOME (so the JSON, extension ids and the
+# /usr/bin/tabctl-mediator path are exactly what upstream generates) and copies the results to the
+# system-wide lookup dirs: Firefox /usr/lib64/mozilla + /usr/lib/mozilla (both documented by Mozilla),
+# Chrome /etc/opt/chrome, Chromium /etc/chromium. Brave has no documented system-wide dir, and tabctl
+# only knows the per-user one, so it is not covered. The browser extension itself still comes from
+# the browser's store (see the `tabctl install` output); restart the browser after installing it.
 ARG TABCTL_VERSION=2.3.1
 RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \
@@ -400,6 +404,18 @@ RUN --mount=type=tmpfs,dst=/var \
     install -m 0755 "/tmp/tabctl/tabctl-mediator-linux-${tarch}" /usr/bin/tabctl-mediator && \
     test -x /usr/bin/tabctl && test -x /usr/bin/tabctl-mediator && \
     tabctl --version | grep -qF "${TABCTL_VERSION}" && \
+    nm=/tmp/tabctl-home && \
+    mkdir -p "${nm}/.mozilla" "${nm}/.config/google-chrome" "${nm}/.config/chromium" && \
+    HOME="${nm}" tabctl install && \
+    f=tabctl_mediator.json && \
+    for d in /usr/lib64/mozilla/native-messaging-hosts /usr/lib/mozilla/native-messaging-hosts; do \
+        install -Dm0644 "${nm}/.mozilla/native-messaging-hosts/${f}" "${d}/${f}"; done && \
+    install -Dm0644 "${nm}/.config/google-chrome/NativeMessagingHosts/${f}" "/etc/opt/chrome/native-messaging-hosts/${f}" && \
+    install -Dm0644 "${nm}/.config/chromium/NativeMessagingHosts/${f}" "/etc/chromium/native-messaging-hosts/${f}" && \
+    for m in /usr/lib64/mozilla/native-messaging-hosts/${f} /usr/lib/mozilla/native-messaging-hosts/${f} \
+             /etc/opt/chrome/native-messaging-hosts/${f} /etc/chromium/native-messaging-hosts/${f}; do \
+        grep -q '"path": "/usr/bin/tabctl-mediator"' "$m" && \
+        { grep -q '"allowed_extensions"' "$m" || grep -q '"allowed_origins"' "$m"; } || exit 1; done && \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 

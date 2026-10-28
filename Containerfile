@@ -376,6 +376,49 @@ RUN --mount=type=tmpfs,dst=/var \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 
+# tabctl (browser tab controller: list/switch/close/open tabs over D-Bus) + tabctl-mediator (its
+# native-messaging host, launched by the browser extension): upstream release tarball with the two
+# static Go binaries, pinned by version and per-arch sha256, copied into /usr/bin (no symlinks).
+# Upstream only writes per-user native-messaging manifests (`tabctl install`), so to work out of the
+# box the build runs `tabctl install` against a scratch HOME (so the JSON, extension ids and the
+# /usr/bin/tabctl-mediator path are exactly what upstream generates) and copies the results to the
+# system-wide lookup dirs: Firefox /usr/lib64/mozilla + /usr/lib/mozilla (both documented by Mozilla),
+# Chrome /etc/opt/chrome, Chromium /etc/chromium. Brave has no documented system-wide dir, and tabctl
+# only knows the per-user one, so it is not covered. The browser extension itself still comes from
+# the browser's store (see the `tabctl install` output); restart the browser after installing it.
+ARG TABCTL_VERSION=2.3.1
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    case "$(arch)" in \
+        x86_64) tarch=amd64; sum=6f5999f9b16aae28c368dc157362a9d562df959991f2f1da31fcdbcf2a568319 ;; \
+        aarch64) tarch=arm64; sum=f4d5c4d5b69a0fc0e074ecda0cbbf1292b3f90372e129da2b0524b526bbe49b1 ;; \
+        *) echo "tabctl: no $(arch) release upstream, skipping"; exit 0 ;; \
+    esac && \
+    tgz="tabctl-linux-${tarch}-v${TABCTL_VERSION}.tar.gz" && \
+    curl -fsSL --retry 5 -o "/tmp/${tgz}" \
+        "https://github.com/slastra/tabctl/releases/download/v${TABCTL_VERSION}/${tgz}" && \
+    echo "${sum}  /tmp/${tgz}" | sha256sum -c - && \
+    mkdir /tmp/tabctl && tar -xzf "/tmp/${tgz}" -C /tmp/tabctl && \
+    install -m 0755 "/tmp/tabctl/tabctl-linux-${tarch}" /usr/bin/tabctl && \
+    install -m 0755 "/tmp/tabctl/tabctl-mediator-linux-${tarch}" /usr/bin/tabctl-mediator && \
+    test -x /usr/bin/tabctl && test -x /usr/bin/tabctl-mediator && \
+    tabctl --version | grep -qF "${TABCTL_VERSION}" && \
+    nm=/tmp/tabctl-home && \
+    mkdir -p "${nm}/.mozilla" "${nm}/.config/google-chrome" "${nm}/.config/chromium" && \
+    HOME="${nm}" tabctl install && \
+    f=tabctl_mediator.json && \
+    for d in /usr/lib64/mozilla/native-messaging-hosts /usr/lib/mozilla/native-messaging-hosts; do \
+        install -Dm0644 "${nm}/.mozilla/native-messaging-hosts/${f}" "${d}/${f}"; done && \
+    install -Dm0644 "${nm}/.config/google-chrome/NativeMessagingHosts/${f}" "/etc/opt/chrome/native-messaging-hosts/${f}" && \
+    install -Dm0644 "${nm}/.config/chromium/NativeMessagingHosts/${f}" "/etc/chromium/native-messaging-hosts/${f}" && \
+    for m in /usr/lib64/mozilla/native-messaging-hosts/${f} /usr/lib/mozilla/native-messaging-hosts/${f} \
+             /etc/opt/chrome/native-messaging-hosts/${f} /etc/chromium/native-messaging-hosts/${f}; do \
+        grep -q '"path": "/usr/bin/tabctl-mediator"' "$m" && \
+        { grep -q '"allowed_extensions"' "$m" || grep -q '"allowed_origins"' "$m"; } || exit 1; done && \
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy
+
 # Config files (greetd config, greeter user/cache dir). Copied AFTER the
 # package install so our /etc/greetd/config.toml wins over the packaged one.
 COPY system_files/ /

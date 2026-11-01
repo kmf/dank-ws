@@ -502,4 +502,15 @@ LABEL io.github.kmf.dank-ws.dms-channel="${DMS_CHANNEL}"
 RUN mv /usr/share/centos.repo.dank-ws-orig /etc/yum.repos.d/centos.repo && \
     mv /usr/share/epel.repo.dank-ws-orig /etc/yum.repos.d/epel.repo
 
+# Fontconfig caches (/usr/lib/fontconfig/cache) are rebuilt on every build by fc-cache and the
+# font package scriptlets and embed directory mtimes, so they differ on every build. Untagged, they
+# land in the ~320 MB shared "unpackaged content + initramfs" rechunk layer and make users download
+# all of it again on every update (the initramfs itself is already byte-identical between builds).
+# Tag them so rechunking gives them their own small (~0.3 MB) layer.
+RUN find /usr/lib/fontconfig/cache -type f ! -type l -exec setfattr -n user.component -v fontconfig-cache {} + && \
+    for f in /usr/lib/fontconfig/cache/*; do \
+        [ -f "$f" ] || continue; \
+        getfattr -n user.component --only-values "$f" | grep -qx fontconfig-cache || { echo "untagged: $f"; exit 1; }; \
+    done
+
 RUN bootc container lint --fatal-warnings

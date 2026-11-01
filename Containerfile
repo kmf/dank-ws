@@ -440,8 +440,8 @@ RUN --mount=type=tmpfs,dst=/var \
     echo "${sum}  /tmp/${ai}" | sha256sum -c - && \
     chmod +x "/tmp/${ai}" && \
     cd /tmp && "/tmp/${ai}" --appimage-extract >/dev/null && \
-    rm -rf /usr/lib/ghostty && mv /tmp/squashfs-root /usr/lib/ghostty && \
-    chmod 0755 /usr/lib/ghostty && \
+    rm -rf /usr/lib/ghostty && mv "$(readlink -f /tmp/squashfs-root)" /usr/lib/ghostty && \
+    test -x /usr/lib/ghostty/AppRun && chmod -R a+rX,go-w /usr/lib/ghostty && \
     printf '%s\n' '#!/bin/sh' 'exec /usr/lib/ghostty/AppRun "$@"' > /usr/bin/ghostty && \
     chmod 0755 /usr/bin/ghostty && \
     g=/usr/lib/ghostty/share && \

@@ -101,7 +101,7 @@ RUN --mount=type=tmpfs,dst=/var \
         https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/docker-ce.repo \
         https://download.docker.com/linux/centos/docker-ce.repo && \
-    dnf -y install -x alacritty niri kitty greetd cava kf6-kimageformats && \
+    dnf -y install -x alacritty niri kitty greetd cava gtk4-layer-shell kf6-kimageformats && \
     dnf -y install wl-clipboard && \
     dnf -y install wtype && \
     dnf list --installed wtype | grep -q dank-ws-copr && test -x /usr/bin/wtype && \

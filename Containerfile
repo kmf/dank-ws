@@ -10,8 +10,8 @@
 # and bridges their clipboard; niri >= 25.08 spawns it on demand, no config needed. It is not in EPEL 10;
 # the EL10 build comes from the official DMS COPR avengemedia/danklinux (DMS upstream da3b658).
 # danklinux also supplies greetd, cava and gtk4-layer-shell (and alacritty, still excluded); the
-# kmf/dank-ws-copr repo excludes those names so it cannot shadow them, and danklinux excludes
-# ghostty* so ghostty (with themes) stays from kmf/dank-ws-copr.
+# kmf/dank-ws-copr repo excludes those names so it cannot shadow them. Both COPRs exclude ghostty*:
+# ghostty comes from the pkgforge-dev AppImage (see the ghostty step below), not from an RPM.
 #
 # AppImages: FUSE 2 (`fuse` = setuid /usr/bin/fusermount, `fuse-libs` = libfuse.so.2), as the AppImage
 # FUSE wiki asks for on Fedora, plus FUSE 3 (fuse3/fuse3-libs, setuid fusermount3) for newer static
@@ -95,20 +95,20 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y copr enable yalter/niri && \
     dnf -y copr enable avengemedia/danklinux && \
     dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:avengemedia:danklinux.excludepkgs=ghostty*' && \
-    dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:kmf:dank-ws-copr.excludepkgs=greetd*,cava*,gtk4-layer-shell*,xwayland-satellite*,alacritty*' && \
+    dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:kmf:dank-ws-copr.excludepkgs=greetd*,cava*,gtk4-layer-shell*,xwayland-satellite*,alacritty*,ghostty*' && \
     dnf -y copr enable ublue-os/packages "epel-10-$(arch)" && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/brave-browser.repo \
         https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/docker-ce.repo \
         https://download.docker.com/linux/centos/docker-ce.repo && \
-    dnf -y install -x alacritty niri ghostty kitty greetd cava kf6-kimageformats && \
+    dnf -y install -x alacritty niri kitty greetd cava gtk4-layer-shell kf6-kimageformats && \
     dnf -y install wl-clipboard && \
     dnf -y install wtype && \
     dnf list --installed wtype | grep -q dank-ws-copr && test -x /usr/bin/wtype && \
     dnf -y install xwayland-satellite && \
-    dnf list --installed greetd cava gtk4-layer-shell xwayland-satellite ghostty && \
+    dnf list --installed greetd cava gtk4-layer-shell xwayland-satellite && \
     for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q danklinux || exit 1; done && \
-    dnf list --installed ghostty | grep -q dank-ws-copr && \
+    ! rpm -q ghostty && \
     test -x /usr/bin/wl-copy && test -x /usr/bin/wl-paste && test -x /usr/bin/xwayland-satellite && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \
     rpm -q starship && starship --version | head -1 && \
@@ -416,6 +416,54 @@ RUN --mount=type=tmpfs,dst=/var \
              /etc/opt/chrome/native-messaging-hosts/${f} /etc/chromium/native-messaging-hosts/${f}; do \
         grep -q '"path": "/usr/bin/tabctl-mediator"' "$m" && \
         { grep -q '"allowed_extensions"' "$m" || grep -q '"allowed_origins"' "$m"; } || exit 1; done && \
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy
+
+# Ghostty: EL10 lacks the GTK 4.18 / libadwaita 1.7 that 1.4.x needs, so it comes from the
+# pkgforge-dev AppImage (bundles its own GTK, libadwaita, Mesa and glvnd via sharun), pinned by
+# version and per-arch sha256 and unpacked with --appimage-extract (no FUSE at runtime) into
+# /usr/lib/ghostty. /usr/bin/ghostty is a wrapper exec'ing its AppRun. Desktop file, icons,
+# terminfo, D-Bus/systemd activation, completions and metainfo are installed system-wide;
+# shell-integration and themes stay in /usr/lib/ghostty/share/ghostty (ghostty's resources dir).
+ARG GHOSTTY_VERSION=1.4.0
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    case "$(arch)" in \
+        x86_64) sum=50ad4f8b54a01e7d41426e7d12ffae9c88aa1c516ac140755e2bca596e1d2ae6 ;; \
+        aarch64) sum=932e21c671c215e6140633027acb4e8705cef3377d335202211c32d88b5bf506 ;; \
+        *) echo "ghostty: no $(arch) AppImage upstream"; exit 1 ;; \
+    esac && \
+    ai="Ghostty-${GHOSTTY_VERSION}-$(arch).AppImage" && \
+    curl -fsSL --retry 5 -o "/tmp/${ai}" \
+        "https://github.com/pkgforge-dev/ghostty-appimage/releases/download/v${GHOSTTY_VERSION}/${ai}" && \
+    echo "${sum}  /tmp/${ai}" | sha256sum -c - && \
+    chmod +x "/tmp/${ai}" && \
+    cd /tmp && "/tmp/${ai}" --appimage-extract >/dev/null && \
+    rm -rf /usr/lib/ghostty && mv "$(readlink -f /tmp/squashfs-root)" /usr/lib/ghostty && \
+    test -x /usr/lib/ghostty/AppRun && chmod -R a+rX,go-w /usr/lib/ghostty && \
+    printf '%s\n' '#!/bin/sh' 'exec /usr/lib/ghostty/AppRun "$@"' > /usr/bin/ghostty && \
+    chmod 0755 /usr/bin/ghostty && \
+    g=/usr/lib/ghostty/share && \
+    install -Dm0644 "$g/applications/com.mitchellh.ghostty.desktop" /usr/share/applications/com.mitchellh.ghostty.desktop && \
+    for d in "$g"/icons/hicolor/*/apps; do \
+        sz="${d#$g/icons/hicolor/}"; sz="${sz%/apps}"; \
+        install -Dm0644 "$d/com.mitchellh.ghostty.png" "/usr/share/icons/hicolor/${sz}/apps/com.mitchellh.ghostty.png"; done && \
+    for t in x/xterm-ghostty g/ghostty; do \
+        [ -e "/usr/share/terminfo/$t" ] || install -Dm0644 "$g/terminfo/$t" "/usr/share/terminfo/$t"; done && \
+    sed 's|^Exec=ghostty|Exec=/usr/bin/ghostty|' "$g/dbus-1/services/com.mitchellh.ghostty.service" \
+        > /usr/share/dbus-1/services/com.mitchellh.ghostty.service && \
+    install -d /usr/lib/systemd/user && \
+    sed 's|^ExecStart=ghostty|ExecStart=/usr/bin/ghostty|' "$g/systemd/user/app-com.mitchellh.ghostty.service" \
+        > /usr/lib/systemd/user/app-com.mitchellh.ghostty.service && \
+    install -Dm0644 "$g/metainfo/com.mitchellh.ghostty.metainfo.xml" /usr/share/metainfo/com.mitchellh.ghostty.metainfo.xml && \
+    install -Dm0644 "$g/bash-completion/completions/ghostty.bash" /usr/share/bash-completion/completions/ghostty && \
+    install -Dm0644 "$g/zsh/site-functions/_ghostty" /usr/share/zsh/site-functions/_ghostty && \
+    install -Dm0644 "$g/fish/vendor_completions.d/ghostty.fish" /usr/share/fish/vendor_completions.d/ghostty.fish && \
+    test -d "$g/ghostty/shell-integration" && test -d "$g/ghostty/themes" && \
+    ghostty --version | grep -qF "Ghostty ${GHOSTTY_VERSION}" && \
+    test -s /usr/share/terminfo/x/xterm-ghostty && \
+    (gtk-update-icon-cache -qtf /usr/share/icons/hicolor || :) && \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 

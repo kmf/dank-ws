@@ -9,7 +9,7 @@
 
 - **niri** (compositor) + **DankMaterialShell** (`dms`, `quickshell` or `quickshell-git`, `matugen`, `cliphist`, `danksearch`, `dgop`, `dankcalendar-git`),
   in a stable or rolling flavour - see [Choosing a DMS channel](#choosing-a-dms-channel)
-- **ghostty** and **kitty** terminals
+- **ghostty** (1.4.0 AppImage, unpacked) and **kitty** terminals
 - **dms-greeter** on **greetd** as the login screen (replaces gdm if present)
 - `cava`, `kf6-kimageformats`
 - **Clipboard / X11 apps**: `wl-clipboard` (`wl-copy`, `wl-paste`; DMS keeps the clipboard history itself, `Mod+V`)

@@ -5,5 +5,5 @@
     "greeter enable",
     "greeter uninstall"
   ],
-  "message": "This command changes system files, which are baked into the dank-ws image. Change the image instead."
+  "message": "This command changes system files, which are baked into the dux-ws image. Change the image instead."
 }

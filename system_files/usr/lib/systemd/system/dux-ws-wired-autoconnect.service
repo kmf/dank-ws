@@ -3,11 +3,12 @@ Description=Enable autoconnect on installer-created wired profiles (once per pro
 After=NetworkManager.service
 Requires=NetworkManager.service
 Before=network-online.target NetworkManager-wait-online.service
+ConditionPathExists=!/etc/dux-ws/no-wired-autoconnect-fix
 ConditionPathExists=!/etc/dank-ws/no-wired-autoconnect-fix
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/dank-ws-wired-autoconnect
+ExecStart=/usr/libexec/dux-ws-wired-autoconnect
 RemainAfterExit=yes
 TimeoutStartSec=30
 

@@ -1,7 +1,7 @@
 # bootc-image-builder config for qcow2/raw disk images (used by `just build-qcow2`).
 # CHANGE THIS PASSWORD (or replace with an SSH key) before using the image for anything real.
 [[customizations.user]]
-name = "dank"
+name = "dux"
 password = "changeme"
 groups = ["wheel"]
 

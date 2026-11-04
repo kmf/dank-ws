@@ -1,4 +1,4 @@
-# dank-ws: CentOS Stream 10 bootc image with niri + DankMaterialShell (dms),
+# dux-ws: CentOS Stream 10 bootc image with niri + Dux Modular Shell (dms),
 # ghostty/kitty, and the dms-greeter/greetd login screen.
 #
 # Layout follows ublue-os/bluefin-lts: base image + one big RUN with tmpfs
@@ -8,8 +8,8 @@
 # as a cliphist dependency). DMS keeps its clipboard history itself (dms server, ext-data-control),
 # so no `wl-paste --watch cliphist store` watcher is needed. xwayland-satellite gives X11 apps a display
 # and bridges their clipboard; niri >= 25.08 spawns it on demand, no config needed. It is not in EPEL 10;
-# the EL10 build comes from the official DMS COPR avengemedia/danklinux (DMS upstream da3b658).
-# danklinux also supplies greetd, cava and gtk4-layer-shell (and alacritty, still excluded); the
+# the EL10 build comes from the official DMS COPR duxlabs/dux-repo (formerly avengemedia/danklinux).
+# dux-repo also supplies greetd, cava and gtk4-layer-shell (and alacritty, still excluded); the
 # kmf/dank-ws-copr repo excludes those names so it cannot shadow them. Both COPRs exclude ghostty*:
 # ghostty comes from the pkgforge-dev AppImage (see the ghostty step below), not from an RPM.
 #
@@ -33,8 +33,8 @@
 ARG BASE_TAG="c10s"
 
 # Image variants (one Containerfile, two images):
-#   dank-ws         ENABLE_NVIDIA=0 (default)  codecs + extra firmware
-#   dank-ws-nvidia  ENABLE_NVIDIA=1            the above + proprietary NVIDIA driver
+#   dux-ws         ENABLE_NVIDIA=0 (default)  codecs + extra firmware
+#   dux-ws-nvidia  ENABLE_NVIDIA=1            the above + proprietary NVIDIA driver
 # For the NVIDIA variant also pass
 #   --build-arg AKMODS_NVIDIA_IMAGE=ghcr.io/ublue-os/akmods-nvidia-open:centos-10
 # which supplies the matching kernel and prebuilt kmod-nvidia rpms. It defaults
@@ -52,7 +52,7 @@ FROM ${AKMODS_NVIDIA_IMAGE} AS akmods_nvidia
 FROM quay.io/centos-bootc/centos-bootc:${BASE_TAG}
 
 ARG ENABLE_NVIDIA
-ARG IMAGE_NAME="dank-ws"
+ARG IMAGE_NAME="dux-ws"
 ARG IMAGE_VENDOR="kmf"
 ARG IMAGE_SOURCE=""
 
@@ -66,7 +66,7 @@ ARG IMAGE_SOURCE=""
 #    CentOS's own CDN, instead of the metalink. The stock centos.repo is restored before `bootc container lint`.
 RUN printf '%s\n' retries=10 timeout=60 minrate=100k fastestmirror=True skip_if_unavailable=False \
       >> /etc/dnf/dnf.conf && \
-    cp -a /etc/yum.repos.d/centos.repo /usr/share/centos.repo.dank-ws-orig && \
+    cp -a /etc/yum.repos.d/centos.repo /usr/share/centos.repo.dux-ws-orig && \
     for r in baseos:BaseOS appstream:AppStream crb:CRB; do \
       sed -i "/^\[${r%%:*}\]/,/^\[/ s|^metalink=.*|baseurl=https://ftp.as3741.net/mirror/centos-stream/\$stream/${r#*:}/\$basearch/os/ https://mirror.stream.centos.org/\$stream/${r#*:}/\$basearch/os/|" \
         /etc/yum.repos.d/centos.repo; \
@@ -86,15 +86,15 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf -y install epel-release dnf-plugins-core && \
     # Build-time EPEL pin (like centos.repo above): IS ZA mirror, then
     # dl.fedoraproject.org, instead of the metalink that hands out flaky mirrors. Restored before `bootc container lint`.
-    cp -a /etc/yum.repos.d/epel.repo /usr/share/epel.repo.dank-ws-orig && \
+    cp -a /etc/yum.repos.d/epel.repo /usr/share/epel.repo.dux-ws-orig && \
     sed -i '/^\[epel\]/,/^\[/ { s|^metalink=.*|baseurl=https://ftp.as3741.net/mirror/fedora/fedora-epel/10/Everything/$basearch/ https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/|; s|^mirrorlist=.*|baseurl=https://ftp.as3741.net/mirror/fedora/fedora-epel/10/Everything/$basearch/ https://dl.fedoraproject.org/pub/epel/10/Everything/$basearch/| }' \
         /etc/yum.repos.d/epel.repo && \
     grep -n '^baseurl=' /etc/yum.repos.d/epel.repo && \
     dnf config-manager --set-enabled crb && \
     dnf -y copr enable kmf/dank-ws-copr && \
     dnf -y copr enable yalter/niri && \
-    dnf -y copr enable avengemedia/danklinux && \
-    dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:avengemedia:danklinux.excludepkgs=ghostty*' && \
+    dnf -y copr enable duxlabs/dux-repo && \
+    dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:duxlabs:dux-repo.excludepkgs=ghostty*' && \
     dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:kmf:dank-ws-copr.excludepkgs=greetd*,cava*,gtk4-layer-shell*,xwayland-satellite*,alacritty*,ghostty*' && \
     dnf -y copr enable ublue-os/packages "epel-10-$(arch)" && \
     curl -fsSL --retry 3 -o /etc/yum.repos.d/brave-browser.repo \
@@ -107,7 +107,7 @@ RUN --mount=type=tmpfs,dst=/var \
     dnf list --installed wtype | grep -q dank-ws-copr && test -x /usr/bin/wtype && \
     dnf -y install xwayland-satellite && \
     dnf list --installed greetd cava gtk4-layer-shell xwayland-satellite && \
-    for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q danklinux || exit 1; done && \
+    for p in greetd cava gtk4-layer-shell xwayland-satellite; do dnf list --installed "$p" | grep -q dux-repo || exit 1; done && \
     ! rpm -q ghostty && \
     test -x /usr/bin/wl-copy && test -x /usr/bin/wl-paste && test -x /usr/bin/xwayland-satellite && \
     dnf -y install gcc zstd file procps-ng git flatpak starship && \
@@ -181,7 +181,7 @@ RUN --mount=type=tmpfs,dst=/var \
     systemctl mask bootc-fetch-apply-updates.timer bootc-fetch-apply-updates.service && \
     dnf -y copr disable kmf/dank-ws-copr && \
     dnf -y copr disable yalter/niri && \
-    dnf -y copr disable avengemedia/danklinux && \
+    dnf -y copr disable duxlabs/dux-repo && \
     dnf -y copr disable ublue-os/packages && \
     sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/brave-browser.repo /etc/yum.repos.d/docker-ce.repo && \
     dnf clean all && \
@@ -204,10 +204,10 @@ RUN --mount=type=tmpfs,dst=/var \
 
 # Initramfs (both variants): regenerate it once, after every package that ships dracut bits
 # (plymouth above, the swapped kernel + NVIDIA driver in the NVIDIA step), so the boot splash and
-# the graphical LUKS passphrase prompt work. The dank-ws Plymouth theme (penguin logo, see logo/)
+# the graphical LUKS passphrase prompt work. The dux-ws Plymouth theme (penguin logo, see logo/)
 # is copied in first and made the default, so it ends up in the initramfs. See build/initramfs.sh.
 # Rechunking puts the initramfs in the shared "unpackaged content + initramfs" layer.
-COPY system_files/usr/share/plymouth/themes/dank-ws/ /usr/share/plymouth/themes/dank-ws/
+COPY system_files/usr/share/plymouth/themes/dux-ws/ /usr/share/plymouth/themes/dux-ws/
 RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/boot \
@@ -254,15 +254,18 @@ RUN --mount=type=tmpfs,dst=/var \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 
-# DankMaterialShell stack: everything from the avengemedia COPRs, in its own late layer
+# Dux Modular Shell stack: everything from the duxlabs COPRs, in its own late layer
 # AFTER the heavy package/firmware/codec/NVIDIA layers, so a DMS bump only touches this
 # step. CI rechunks the image (rpm-ostree build-chunked-oci); the files of the DMS packages
 # are tagged with the user.component xattr so each of them gets a dedicated layer instead of
 # being packed into shared size-balanced chunks.
 #
 # DMS_CHANNEL picks the upstream DMS COPR (published as separate image tags, see README):
-#   stable   avengemedia/dms      tagged DMS releases + quickshell
-#   rolling  avengemedia/dms-git  DMS git snapshots + quickshell-git   (:latest follows this)
+#   stable   duxlabs/dms      tagged DMS releases + quickshell
+#   rolling  duxlabs/dms-git  DMS git snapshots + quickshell-git   (:latest follows this)
+# quickshell(-git), matugen and the dux-* tools come from duxlabs/dux-repo (formerly
+# avengemedia/danklinux). cliphist is not in dux-repo yet, so avengemedia/danklinux stays
+# enabled for this step with includepkgs=cliphist only.
 # Everything above this step is identical for both channels, so with a shared build cache both
 # channels share every layer except the DMS ones. Unpackaged files this step (and the
 # `dms setup` step below) writes, e.g. the rpmdb, /etc/passwd and the COPR .repo files, are
@@ -273,31 +276,36 @@ RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/boot \
     touch /tmp/dms-step-start && \
     case "${DMS_CHANNEL}" in \
-        stable)  DMS_COPR=avengemedia/dms;     QUICKSHELL=quickshell ;; \
-        rolling) DMS_COPR=avengemedia/dms-git; QUICKSHELL=quickshell-git ;; \
+        stable)  DMS_COPR=duxlabs/dms;     QUICKSHELL=quickshell ;; \
+        rolling) DMS_COPR=duxlabs/dms-git; QUICKSHELL=quickshell-git ;; \
         *) echo "DMS_CHANNEL must be stable or rolling, got '${DMS_CHANNEL}'" >&2; exit 1 ;; \
     esac && \
+    dnf -y copr enable duxlabs/dux-repo && \
+    dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:duxlabs:dux-repo.excludepkgs=ghostty*' && \
     dnf -y copr enable avengemedia/danklinux && \
+    dnf config-manager --save --setopt='copr:copr.fedorainfracloud.org:avengemedia:danklinux.includepkgs=cliphist' && \
     dnf -y copr enable "${DMS_COPR}" && \
+    dnf config-manager --save --setopt="copr:copr.fedorainfracloud.org:${DMS_COPR%/*}:${DMS_COPR#*/}.excludepkgs=ghostty*" && \
     dnf -y install --enablerepo=epel \
-        "${QUICKSHELL}" matugen cliphist danksearch dgop dankcalendar-git dms dms-greeter && \
+        "${QUICKSHELL}" matugen cliphist dux-search dux-gop dux-calendar-git dms dux-greeter && \
     rpm -q dms dms-cli "${QUICKSHELL}" && \
     # dux-files-git needs quickshell; install it after the channel's quickshell so
     # rolling doesn't pull stable quickshell (conflicts with quickshell-git).
     # -git build includes upstream 2830037 (Qt 6.10 'boolean' QML property fix).
     dnf -y install dux-files-git && rpm -q dux-files-git "${QUICKSHELL}" && \
     ! rpm -q dux-files && \
-    dnf list --installed dux-files-git | grep -q danklinux && \
+    dnf list --installed dux-files-git | grep -q dux-repo && \
     systemctl enable greetd.service && \
     test -f /usr/lib/systemd/user/dms.service && \
     { rpm -q attr >/dev/null || dnf -y install attr; } && \
-    for pkg in dms dms-cli "${QUICKSHELL}" matugen cliphist dgop; do \
+    for pkg in dms dms-cli "${QUICKSHELL}" matugen cliphist dux-gop; do \
         rpm -ql "$pkg" | while read -r f; do \
             if [ -f "$f" ] && [ ! -L "$f" ]; then setfattr -n user.component -v "$pkg" "$f"; fi; \
         done; \
         test -n "$(getfattr --absolute-names -n user.component --only-values "$(rpm -ql "$pkg" | while read -r f; do [ -f "$f" ] && [ ! -L "$f" ] && echo "$f" && break; done)")"; \
     done && \
     systemctl --global enable dms.service && \
+    dnf -y copr disable duxlabs/dux-repo && \
     dnf -y copr disable avengemedia/danklinux && \
     dnf -y copr disable "${DMS_COPR}" && \
     dnf clean all && \
@@ -473,9 +481,9 @@ COPY system_files/ /
 
 # Signature enforcement: installed systems only accept our images when they carry a valid
 # cosign signature (public key = cosign.pub, signed by the CI workflow). See build/signing.sh.
-COPY cosign.pub /etc/pki/containers/dank-ws.pub
+COPY cosign.pub /etc/pki/containers/dux-ws.pub
 RUN --mount=type=bind,src=build,dst=/run/build \
-    /run/build/signing.sh "ghcr.io/${IMAGE_VENDOR}" dank-ws dank-ws-nvidia
+    /run/build/signing.sh "ghcr.io/${IMAGE_VENDOR}" dux-ws dux-ws-nvidia
 
 # Default niri + DMS config. Generated with the same command users would run
 # (`dms setup headless`; it refuses to run as root, hence `nobody`) so it always matches the
@@ -506,31 +514,31 @@ RUN --mount=type=tmpfs,dst=/tmp \
 # Branding (Bluefin LTS approach): product name in os-release, ID=centos kept so CentOS tooling still works.
 # The bootc/ostree boot entry title is "<PRETTY_NAME> (ostree:N)".
 RUN sed -i \
-        -e 's/^NAME=.*/NAME="Dank Workstation"/' \
-        -e 's/^PRETTY_NAME=.*/PRETTY_NAME="Dank Workstation 10 (Coughlan)"/' \
+        -e 's/^NAME=.*/NAME="Dux Workstation"/' \
+        -e 's/^PRETTY_NAME=.*/PRETTY_NAME="Dux Workstation 10 (Coughlan)"/' \
         -e 's/^ID_LIKE=.*/ID_LIKE="centos rhel fedora"/' \
-        -e 's|^HOME_URL=.*|HOME_URL="https://github.com/kmf/dank-ws"|' \
-        -e 's|^BUG_REPORT_URL=.*|BUG_REPORT_URL="https://github.com/kmf/dank-ws/issues"|' \
+        -e 's|^HOME_URL=.*|HOME_URL="https://github.com/kmf/dux-ws"|' \
+        -e 's|^BUG_REPORT_URL=.*|BUG_REPORT_URL="https://github.com/kmf/dux-ws/issues"|' \
         /usr/lib/os-release && \
-    printf 'VARIANT="%s"\nVARIANT_ID=%s\nDEFAULT_HOSTNAME="dank-ws"\n' "${IMAGE_NAME}" "${IMAGE_NAME}" >> /usr/lib/os-release && \
-    . /usr/lib/os-release && [ "$ID" = centos ] && [ "$VERSION_ID" = 10 ] && [ "$NAME" = "Dank Workstation" ] && \
-    [ "$ID_LIKE" = "centos rhel fedora" ] && [ "$PRETTY_NAME" = "Dank Workstation 10 (Coughlan)" ]
+    printf 'VARIANT="%s"\nVARIANT_ID=%s\nDEFAULT_HOSTNAME="dux-ws"\n' "${IMAGE_NAME}" "${IMAGE_NAME}" >> /usr/lib/os-release && \
+    . /usr/lib/os-release && [ "$ID" = centos ] && [ "$VERSION_ID" = 10 ] && [ "$NAME" = "Dux Workstation" ] && \
+    [ "$ID_LIKE" = "centos rhel fedora" ] && [ "$PRETTY_NAME" = "Dux Workstation 10 (Coughlan)" ]
 
 # voxtype: enabled for every user (WantedBy=graphical-session.target, which niri-session brings up),
-# the same way as dms.service. The 80-dank-ws.preset keeps `systemctl --user preset` in agreement.
-# A first-login oneshot (dank-ws-voxtype-model.service) downloads base.en if the user has no model.
+# the same way as dms.service. The 80-dux-ws.preset keeps `systemctl --user preset` in agreement.
+# A first-login oneshot (dux-ws-voxtype-model.service) downloads base.en if the user has no model.
 # The shipped /etc/voxtype/config.toml has the evdev hotkey disabled, so no `input` group is needed;
 # bind a niri key to `voxtype record toggle` (or start/stop).
 RUN if [ -f /usr/lib/systemd/user/voxtype.service ]; then \
         systemctl --global enable voxtype.service && \
         systemctl --global is-enabled voxtype.service && \
-        bash -n /usr/libexec/dank-ws-voxtype-model && \
+        bash -n /usr/libexec/dux-ws-voxtype-model && \
         rpm -q wtype; \
-    else rm -f /usr/lib/systemd/user/voxtype.service.d/10-dank-ws.conf; fi
+    else rm -f /usr/lib/systemd/user/voxtype.service.d/10-dux-ws.conf; fi
 
-RUN systemctl enable flatpak-preinstall.service dank-ws-docker-group.service dank-ws-wired-autoconnect.service && \
-    test -x /usr/libexec/dank-ws-wired-autoconnect && bash -n /usr/libexec/dank-ws-wired-autoconnect && \
-    systemctl is-enabled dank-ws-wired-autoconnect.service && \
+RUN systemctl enable flatpak-preinstall.service dux-ws-docker-group.service dux-ws-wired-autoconnect.service && \
+    test -x /usr/libexec/dux-ws-wired-autoconnect && bash -n /usr/libexec/dux-ws-wired-autoconnect && \
+    systemctl is-enabled dux-ws-wired-autoconnect.service && \
     ( n=0; for k in /usr/lib/modules/*/; do \
           [ -e "${k}vmlinuz" ] || continue; n=$((n + 1)); \
           { find "$k" -name 'fuse.ko*' | grep -q . || grep -q '/fuse.ko' "${k}modules.builtin"; } || \
@@ -542,13 +550,13 @@ LABEL containers.bootc=1
 LABEL ostree.bootable=1
 LABEL org.opencontainers.image.title="${IMAGE_NAME}"
 LABEL org.opencontainers.image.vendor="${IMAGE_VENDOR}"
-LABEL org.opencontainers.image.description="CentOS Stream 10 bootc image with niri, DankMaterialShell, ghostty and kitty (nvidia variant: ENABLE_NVIDIA=${ENABLE_NVIDIA})"
+LABEL org.opencontainers.image.description="CentOS Stream 10 bootc image with niri, Dux Modular Shell, ghostty and kitty (nvidia variant: ENABLE_NVIDIA=${ENABLE_NVIDIA})"
 LABEL org.opencontainers.image.source="${IMAGE_SOURCE}"
-LABEL io.github.kmf.dank-ws.dms-channel="${DMS_CHANNEL}"
+LABEL io.github.kmf.dux-ws.dms-channel="${DMS_CHANNEL}"
 
 # Restore the stock CentOS and EPEL repo files (build-time mirror pin, see top of file).
-RUN mv /usr/share/centos.repo.dank-ws-orig /etc/yum.repos.d/centos.repo && \
-    mv /usr/share/epel.repo.dank-ws-orig /etc/yum.repos.d/epel.repo
+RUN mv /usr/share/centos.repo.dux-ws-orig /etc/yum.repos.d/centos.repo && \
+    mv /usr/share/epel.repo.dux-ws-orig /etc/yum.repos.d/epel.repo
 
 # Fontconfig caches (/usr/lib/fontconfig/cache) are rebuilt on every build by fc-cache and the
 # font package scriptlets and embed directory mtimes, so they differ on every build. Untagged, they

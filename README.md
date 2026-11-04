@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="logo/penguin-full-256.png" alt="dank-ws penguin logo" width="256" height="256">
+  <img src="logo/penguin-full-256.png" alt="dux-ws penguin logo" width="256" height="256">
 </p>
 
-# Dank Workstation (dank-ws)
+# Dux Workstation (dux-ws)
 
-**Dank Workstation** (dank-ws for short) is a CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled on
+**Dux Workstation** (dux-ws for short) is a CentOS Stream 10 [bootc](https://containers.github.io/bootc/) image, modelled on
 [bluefin-lts](https://github.com/ublue-os/bluefin-lts), that ships:
 
-- **niri** (compositor) + **DankMaterialShell** (`dms`, `quickshell` or `quickshell-git`, `matugen`, `cliphist`, `danksearch`, `dgop`, `dankcalendar-git`),
+- **niri** (compositor) + **Dux Modular Shell** (`dms`, `quickshell` or `quickshell-git`, `matugen`, `cliphist`, `dux-search`, `dux-gop`, `dux-calendar-git`, `dux-files-git`),
   in a stable or rolling flavour - see [Choosing a DMS channel](#choosing-a-dms-channel)
 - **ghostty** (1.4.0 AppImage, unpacked) and **kitty** terminals
-- **dms-greeter** on **greetd** as the login screen (replaces gdm if present)
+- **dux-greeter** (`dms-greeter`) on **greetd** as the login screen (replaces gdm if present)
 - `cava`, `kf6-kimageformats`
 - **Clipboard / X11 apps**: `wl-clipboard` (`wl-copy`, `wl-paste`; DMS keeps the clipboard history itself, `Mod+V`)
   and `xwayland-satellite` (+ Xwayland), which niri starts on demand so X11 apps run and share the clipboard
@@ -21,7 +21,7 @@
   can be added and configured from the DMS settings (polkit-authorized, no root shell needed)
 - **Fingerprint login**: `fprintd`/`fprintd-pam` with authselect `with-fingerprint` (sudo, polkit, greeter; password as
   fallback). Enroll with `fprintd-enroll`; for the lock screen also enable it in DMS Settings -> Lock Screen
-- **Plymouth** graphical boot splash with the dank-ws penguin logo (see [`logo/`](logo/)) and a graphical LUKS
+- **Plymouth** graphical boot splash with the dux-ws penguin logo (see [`logo/`](logo/)) and a graphical LUKS
   passphrase prompt - see [Boot splash](#boot-splash-plymouth)
 - **starship** prompt (bash/zsh) with a system-wide default config - see [Starship](#starship)
 - **1Password** desktop app (official RPM, native Wayland; in `/usr/lib/1Password`, `/opt/1Password` is a symlink)
@@ -31,7 +31,7 @@
 - **Homebrew** (Linuxbrew, unpacked on first boot), **Bazaar** (Flathub app store, Flatpak),
   **Brave Origin** (browser) and **Docker Engine** (`docker-ce`) - see [Extra components](#extra-components)
 
-Packages come from EPEL/CRB plus the COPRs `avengemedia/danklinux`, `avengemedia/dms` or `avengemedia/dms-git`,
+Packages come from EPEL/CRB plus the COPRs `duxlabs/dux-repo`, `duxlabs/dms` or `duxlabs/dms-git` (cliphist still from `avengemedia/danklinux`),
 `yalter/niri` and [`kmf/dank-ws-copr`](https://github.com/kmf/dank-ws-copr) (which also ships starship, repackaged from upstream releases; it is not in EPEL 10). xwayland-satellite (not in EPEL 10) comes from `avengemedia/danklinux`.
 The COPR repos are disabled again at the end of the build. Brave's and Docker's yum repos are
 left on disk but disabled (`enabled=0`) after install, so updates come from rebuilding the image.
@@ -45,8 +45,8 @@ One `Containerfile` builds two images (selected by `--build-arg ENABLE_NVIDIA=0|
 
 | Image | Contents |
 |---|---|
-| `ghcr.io/<owner>/dank-ws` | Everything above + multimedia codecs + extra firmware |
-| `ghcr.io/<owner>/dank-ws-nvidia` | `dank-ws` + proprietary NVIDIA driver (open kernel modules) - see [NVIDIA variant](#nvidia-variant-dank-ws-nvidia) |
+| `ghcr.io/<owner>/dux-ws` | Everything above + multimedia codecs + extra firmware |
+| `ghcr.io/<owner>/dux-ws-nvidia` | `dux-ws` + proprietary NVIDIA driver (open kernel modules) - see [NVIDIA variant](#nvidia-variant-dux-ws-nvidia) |
 
 Each variant has its own interactive install ISO - see [Installer ISO](#installer-iso-live-usb).
 
@@ -56,8 +56,8 @@ Each image is published in two DMS channels (`--build-arg DMS_CHANNEL=stable|rol
 
 | Tag | DMS from | Notes |
 |---|---|---|
-| `:stable` | `avengemedia/dms` (tagged DMS releases) + `quickshell` | |
-| `:rolling` | `avengemedia/dms-git` (git snapshots) + `quickshell-git` | newest features, can break |
+| `:stable` | `duxlabs/dms` (tagged DMS releases) + `quickshell` | |
+| `:rolling` | `duxlabs/dms-git` (git snapshots) + `quickshell-git` | newest features, can break |
 | `:latest` | same image as `:rolling` | kept for systems installed from older ISOs, which track it; current ISOs install `:stable` |
 
 Everything else in the image is identical. Every image (both channels, x86_64 and aarch64) ships [Tailscale](https://tailscale.com)
@@ -65,8 +65,8 @@ from Tailscale's own CentOS 10 repo (as Bluefin LTS does; the repo is left on di
 `tailscaled.service` enabled. Run `sudo tailscale up` to log in. Switch with:
 
 ```bash
-sudo bootc switch --enforce-container-sigpolicy ghcr.io/kmf/dank-ws:rolling          # or :stable
-sudo bootc switch --enforce-container-sigpolicy ghcr.io/kmf/dank-ws-nvidia:rolling   # or :stable
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/kmf/dux-ws:rolling          # or :stable
+sudo bootc switch --enforce-container-sigpolicy ghcr.io/kmf/dux-ws-nvidia:rolling   # or :stable
 sudo systemctl reboot
 ```
 
@@ -96,7 +96,7 @@ from `ghcr.io/ublue-os/brew` (the same image bluefin-lts uses, pinned by digest 
 `brew-update.timer` and `brew-upgrade.timer` are enabled. `gcc`, `zstd`, `file`, `procps-ng` and `git`
 are installed because Homebrew needs them.
 Optional shell tools (eza, zoxide, dust, lazygit, yazi, fzf, bat, ripgrep, fd, atuin, btop, duf, tldr, git-delta, jq):
-`brew bundle --file /usr/share/dank-ws/Brewfile` (not installed automatically; brew's `bin` comes after the system paths).
+`brew bundle --file /usr/share/dux-ws/Brewfile` (not installed automatically; brew's `bin` comes after the system paths).
 
 ### Bazaar / Flathub
 `flatpak` is installed and the Flathub remote is shipped in `/etc/flatpak/remotes.d/`.
@@ -116,7 +116,7 @@ Docker's CentOS repo; `docker.service` and `containerd.service` are enabled.
 
 - **Licensing:** Docker Engine (Moby) is Apache-2.0 and free to use. Docker Desktop has separate
   (paid for larger companies) terms and is **not** included. This is the published licensing, not legal advice.
-- **Group:** the `docker` group exists (sysusers) and `dank-ws-docker-group.service`
+- **Group:** the `docker` group exists (sysusers) and `dux-ws-docker-group.service`
   adds the first user (UID 1000, created by the installer) to it on boot (idempotent;
   log out and back in to apply). Membership is **root-equivalent** access to the host;
   other users need `sudo usermod -aG docker <user>`.
@@ -130,14 +130,14 @@ bash/zsh (skipped for `TERM=dumb`/`linux` and when `~/.config/no-starship` exist
 
 ### Boot splash (Plymouth)
 
-`plymouth` + `plymouth-system-theme` are installed (as in Bluefin LTS) and the default theme is `dank-ws`
-(`system_files/usr/share/plymouth/themes/dank-ws/`): the dank-ws penguin (`watermark.png` =
+`plymouth` + `plymouth-system-theme` are installed (as in Bluefin LTS) and the default theme is `dux-ws`
+(`system_files/usr/share/plymouth/themes/dux-ws/`): the dux-ws penguin (`watermark.png` =
 `logo/penguin-full-256.png`) on a dark background, with the stock spinner theme's throbber and password dialog
 (two-step plugin). The initramfs is regenerated with the `plymouth` and `crypt` dracut modules and the theme
-(`build/initramfs.sh`; the build fails if any of them, or the logo, is missing from the initramfs) and `/usr/lib/bootc/kargs.d/10-dank-ws-splash.toml` adds the kernel arguments `rhgb quiet`. So the
+(`build/initramfs.sh`; the build fails if any of them, or the logo, is missing from the initramfs) and `/usr/lib/bootc/kargs.d/10-dux-ws-splash.toml` adds the kernel arguments `rhgb quiet`. So the
 LUKS passphrase is asked for on the graphical splash instead of a text prompt. bootc applies kargs.d
 changes as a diff, so existing installs get the arguments with the next `bootc upgrade` (or `uupd`) plus a
-reboot; nothing else is needed. Press `Esc` during boot to see the boot messages. On `dank-ws-nvidia` the
+reboot; nothing else is needed. Press `Esc` during boot to see the boot messages. On `dux-ws-nvidia` the
 splash runs on the NVIDIA driver, which is forced into the initramfs with `nvidia-drm.modeset=1`.
 
 ### Multimedia codecs (both images)
@@ -151,7 +151,7 @@ and then left disabled: `ffmpeg`, `libavcodec`, the `@multimedia` group, `gstrea
 `alsa-firmware`, `intel-vsc-firmware`, `iwlwifi-dvm/mvm-firmware`, `iwlegacy-firmware`, `libertas-firmware`,
 `qcom-firmware`, `microcode_ctl` and `fwupd`.
 
-### NVIDIA variant (`dank-ws-nvidia`)
+### NVIDIA variant (`dux-ws-nvidia`)
 Follows bluefin-lts' GDX build (`build/nvidia.sh`): the kernel is swapped for the one from
 `ghcr.io/ublue-os/akmods-nvidia-open:centos-10` and version-locked, the prebuilt `kmod-nvidia` plus
 negativo17's `nvidia-driver`, `nvidia-driver-cuda`, `nvidia-settings`, `libnvidia-fbc`,
@@ -162,7 +162,7 @@ negativo17's `nvidia-driver`, `nvidia-driver-cuda`, `nvidia-settings`, `libnvidi
 - **Supported GPUs:** the *open* kernel modules (`nvidia-open`) support **GeForce GTX 16-series / RTX
   (Turing) and newer only**. Older cards (Pascal and earlier, e.g. GTX 10-series) are not supported by this image.
 - **Secure Boot:** the modules are signed with the ublue-os akmods key, which must be enrolled once.
-  The cert is shipped at `/etc/pki/akmods/certs/akmods-ublue.der`. Run `dank-ws-enroll-mok` (wraps
+  The cert is shipped at `/etc/pki/akmods/certs/akmods-ublue.der`. Run `dux-ws-enroll-mok` (wraps
   `mokutil --import /etc/pki/akmods/certs/akmods-ublue.der`), set a one-time password, reboot, and choose
   *Enroll MOK* in the blue screen. A login-shell hint reminds you while Secure Boot is on and the key is not enrolled.
 - The kernel is pinned to the akmods build, so kernel updates arrive with image rebuilds only.
@@ -170,7 +170,7 @@ negativo17's `nvidia-driver`, `nvidia-driver-cuda`, `nvidia-settings`, `libnvidi
 ### How updates flow (end to end)
 
 1. **GitHub Actions builds the images**: weekly (Sunday 05:00 UTC, picks up base image and COPR updates) and on every push to `main`.
-2. Each build is pushed to `ghcr.io/kmf/dank-ws` / `ghcr.io/kmf/dank-ws-nvidia` (`:stable`, `:rolling` and `:latest` = rolling, each with a dated tag: `stable-YYYYMMDD`, `rolling-YYYYMMDD`, `YYYYMMDD`) and **signed with cosign** (`SIGNING_SECRET`).
+2. Each build is pushed to `ghcr.io/kmf/dux-ws` / `ghcr.io/kmf/dux-ws-nvidia` (`:stable`, `:rolling` and `:latest` = rolling, each with a dated tag: `stable-YYYYMMDD`, `rolling-YYYYMMDD`, `YYYYMMDD`) and **signed with cosign** (`SIGNING_SECRET`).
 3. The laptop's **`uupd.timer`** (daily) pulls the tag it tracks (`:stable` for installs from current ISOs, `:latest` = rolling for installs from older ISOs, or whatever you switched to), stages the new deployment, and updates Flatpaks and Homebrew too. **Reboot to apply** the staged OS update (`sudo uupd --apply` reboots for you).
 4. The installed system **only accepts signed images** for these two repositories (see below), so a tampered or unsigned image is rejected at pull time.
 
@@ -183,17 +183,17 @@ sudo bootc rollback      # boot the previous deployment on the next reboot
 
 **Scheduled workflows get disabled by GitHub after 60 days without repository activity** (public repos). If that
 happens the weekly build silently stops: re-enable it on the repo's *Actions* tab (*Build and publish image* ->
-*Enable workflow*), or run `gh workflow enable build.yml -R kmf/dank-ws` and `gh workflow run build.yml -R kmf/dank-ws`.
-Any push to `main` also keeps it alive; check `gh run list -R kmf/dank-ws -w build.yml -L3` now and then.
+*Enable workflow*), or run `gh workflow enable build.yml -R kmf/dux-ws` and `gh workflow run build.yml -R kmf/dux-ws`.
+Any push to `main` also keeps it alive; check `gh run list -R kmf/dux-ws -w build.yml -L3` now and then.
 
 #### Signature enforcement (installed systems)
 `build/signing.sh` runs at image build time and ships, like Bluefin's `ublue-os-signing`:
-`/etc/pki/containers/dank-ws.pub` (this repo's `cosign.pub`), `/etc/containers/registries.d/dank-ws.yaml`
+`/etc/pki/containers/dux-ws.pub` (this repo's `cosign.pub`), `/etc/containers/registries.d/dux-ws.yaml`
 (`use-sigstore-attachments: true` for `ghcr.io/kmf`) and `/etc/containers/policy.json` (the distro default
-plus `sigstoreSigned` entries for `ghcr.io/kmf/dank-ws` and `ghcr.io/kmf/dank-ws-nvidia`, `signedIdentity: matchRepository`).
+plus `sigstoreSigned` entries for `ghcr.io/kmf/dux-ws` and `ghcr.io/kmf/dux-ws-nvidia`, `signedIdentity: matchRepository`).
 Other registries keep the distro default policy. Forks: build with `--build-arg IMAGE_VENDOR=<owner>` and your own `cosign.pub`.
 `bootc switch --enforce-container-sigpolicy` (used in `iso.toml`) makes bootc itself apply this policy.
-Verify manually: `cosign verify --key cosign.pub ghcr.io/kmf/dank-ws:latest`.
+Verify manually: `cosign verify --key cosign.pub ghcr.io/kmf/dux-ws:latest`.
 
 ### Updates (uupd)
 [`uupd`](https://github.com/ublue-os/uupd) (Universal Blue's updater, from the `ublue-os/packages` COPR,
@@ -244,11 +244,11 @@ Do not add `--no-systemd`: that variant adds `spawn-at-startup "dms" "run"`, whi
    ```
 3. **Publish**: push this repo to GitHub (default branch `main`). The workflow builds on push,
    weekly (Sundays 05:00 UTC) and on manual dispatch, pushes
-   `ghcr.io/<owner>/dank-ws` and `ghcr.io/<owner>/dank-ws-nvidia` as `:stable`, `:rolling` and `:latest` (= rolling), plus dated tags (matrix build per variant, both channels per job) and signs the digests. Pull requests build only.
+   `ghcr.io/<owner>/dux-ws` and `ghcr.io/<owner>/dux-ws-nvidia` as `:stable`, `:rolling` and `:latest` (= rolling), plus dated tags (matrix build per variant, both channels per job) and signs the digests. Pull requests build only.
    After the first push, make the GHCR package public if you want to pull it without credentials.
 4. **Switch a host** (any existing bootc system, e.g. CentOS Stream 10 bootc, Fedora bootc, Bluefin LTS):
    ```bash
-   sudo bootc switch ghcr.io/<owner>/dank-ws:latest         # or dank-ws-nvidia:latest
+   sudo bootc switch ghcr.io/<owner>/dux-ws:latest         # or dux-ws-nvidia:latest
    sudo systemctl reboot
    ```
    `<owner>` must be lowercase.
@@ -260,11 +260,11 @@ Enabled by default in the image, see [Signature enforcement](#signature-enforcem
 ## Local builds
 
 ```bash
-just build            # sudo podman build -> localhost/dank-ws:latest
-just build-nvidia     # NVIDIA variant -> localhost/dank-ws-nvidia:latest
+just build            # sudo podman build -> localhost/dux-ws:latest
+just build-nvidia     # NVIDIA variant -> localhost/dux-ws-nvidia:latest
 just build-qcow2      # output/qcow2/disk.qcow2 via bootc-image-builder + image.toml
-just build-iso        # output/dank-ws/bootiso/install.iso (interactive installer, see below)
-just build-iso-nvidia # output/dank-ws-nvidia/bootiso/install.iso
+just build-iso        # output/dux-ws/bootiso/install.iso (interactive installer, see below)
+just build-iso-nvidia # output/dux-ws-nvidia/bootiso/install.iso
 ```
 
 Before building a VM image, edit the placeholder user/password in `image.toml`. If you are not `kmf`, set
@@ -295,12 +295,12 @@ overrides `enable`, so never list them under `disable`).
 
 ```bash
 just build-iso            # or: just build-iso-nvidia   (needs sudo/rootful podman, ~15 GB free disk)
-ls -lh output/dank-ws/bootiso/install.iso      # ~4 GB (dank-ws-nvidia: ~5 GB)
+ls -lh output/dux-ws/bootiso/install.iso      # ~4 GB (dux-ws-nvidia: ~5 GB)
 ```
 
 ISOs are 4-5 GB, above GitHub's 2 GiB release-asset limit, so release assets are split parts. The
 published ones were **built locally** (CI is manual only, see below) and are on the
-[`v0.1.0-iso` release](https://github.com/kmf/dank-ws/releases/tag/v0.1.0-iso) as split parts.
+[`v0.1.0-iso` release](https://github.com/kmf/dux-ws/releases/tag/v0.1.0-iso) as split parts.
 
 ### Installer branding
 
@@ -310,15 +310,15 @@ The `anaconda-iso` type of bootc-image-builder has **no branding knobs**. Its co
 
 | What | Where it comes from | Result today |
 |---|---|---|
-| Boot menu entries (`Install ... `, `Test this media & install ...`) | osbuild's fixed grub2 template, filled with `NAME`/`VERSION_ID` from the image's `/usr/lib/os-release` | `Install Dank Workstation 10` |
+| Boot menu entries (`Install ... `, `Test this media & install ...`) | osbuild's fixed grub2 template, filled with `NAME`/`VERSION_ID` from the image's `/usr/lib/os-release` | `Install Dux Workstation 10` |
 | Boot menu background/theme | none (plain text grub2 menu, BIOS and UEFI; no isolinux on EL10) | - |
-| Anaconda product name (top bar, welcome screen) | `.buildstamp`, same `NAME`/`VERSION_ID` | `DANK WORKSTATION 10 INSTALLATION` (after an ISO rebuild) |
+| Anaconda product name (top bar, welcome screen) | `.buildstamp`, same `NAME`/`VERSION_ID` | `DUX WORKSTATION 10 INSTALLATION` (after an ISO rebuild) |
 | Anaconda sidebar/top bar logos | `centos-logos`, installed into the installer from the CentOS repos built into bootc-image-builder (not from our image) | CentOS logos |
 | ISO volume label | derived from os-release `ID`/`VERSION_ID` | `CentOS-Stream-10-BaseOS-x86_64` |
 
-`NAME`/`PRETTY_NAME` in the image's os-release are set to Dank Workstation (Bluefin LTS approach: `ID=centos`
+`NAME`/`PRETTY_NAME` in the image's os-release are set to Dux Workstation (Bluefin LTS approach: `ID=centos`
 kept for tooling, `ID_LIKE="centos rhel fedora"`), so installed systems' boot menu entries read
-`Dank Workstation 10 (Coughlan) (ostree:0)`. Putting the penguin in the installer still needs post-processing the finished ISO (adding an
+`Dux Workstation 10 (Coughlan) (ostree:0)`. Putting the penguin in the installer still needs post-processing the finished ISO (adding an
 Anaconda `images/product.img` with the logos and rewriting `grub.cfg` on the ISO and in its EFI boot
 image with `xorriso`). Neither is done yet.
 
@@ -326,7 +326,7 @@ image with `xorriso`). Neither is done yet.
 
 The **Build installer ISO** workflow (`.github/workflows/build-iso.yml`, `workflow_dispatch` only) pulls
 `ghcr.io/<owner>/<variant>:<tag>` and runs the same bootc-image-builder step as the Justfile on a free
-`ubuntu-24.04` runner (about 11 minutes for dank-ws). Inputs: `variant` (`dank-ws`, `dank-ws-nvidia` or
+`ubuntu-24.04` runner (about 11 minutes for dux-ws). Inputs: `variant` (`dux-ws`, `dux-ws-nvidia` or
 `both`, one matrix job each), `tag` (image to embed, default `stable`), `origin_tag` (tag the installed system
 follows, default `stable`), `publish_release` and `release_tag`. The ISO and its checksum are
 uploaded as an Actions artifact (kept 14 days, stored uncompressed). With `publish_release` the ISO is
@@ -342,10 +342,10 @@ Each ISO is split into <2 GiB parts (`split -b 1900M`). Download all parts of th
 `SHA256SUMS` from the release, then reassemble and verify:
 
 ```bash
-cat dank-ws-install.iso.part* > dank-ws-install.iso                    # or dank-ws-nvidia-install.iso.part*
+cat dux-ws-install.iso.part* > dux-ws-install.iso                    # or dux-ws-nvidia-install.iso.part*
 sha256sum -c SHA256SUMS --ignore-missing
 # or with the GitHub CLI:
-gh release download v0.1.0-iso -R kmf/dank-ws -p 'dank-ws-install.iso.part*' -p SHA256SUMS
+gh release download v0.1.0-iso -R kmf/dux-ws -p 'dux-ws-install.iso.part*' -p SHA256SUMS
 ```
 
 `SHA256SUMS.parts` holds the checksums of the individual parts. The prebuilt ISOs were only tested in
@@ -355,7 +355,7 @@ QEMU/UEFI.
 
 ```bash
 # DESTRUCTIVE: replace /dev/sdX with the USB stick (check with lsblk!)
-sudo dd if=output/dank-ws/bootiso/install.iso of=/dev/sdX bs=4M status=progress oflag=sync
+sudo dd if=output/dux-ws/bootiso/install.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
 (or Fedora Media Writer / `gnome-disk-utility` "Restore Disk Image"). Boot it in UEFI mode.
@@ -378,8 +378,8 @@ with `sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 /dev/disk/by-uui
 PCR 7 binds to the Secure Boot state, so re-enroll after changing Secure Boot keys.
 
 **NVIDIA ISO + Secure Boot:** the installer boots under Secure Boot (shim), but the installed
-`dank-ws-nvidia` system needs the akmods key enrolled once - run `dank-ws-enroll-mok` after the first boot
-(see [NVIDIA variant](#nvidia-variant-dank-ws-nvidia)).
+`dux-ws-nvidia` system needs the akmods key enrolled once - run `dux-ws-enroll-mok` after the first boot
+(see [NVIDIA variant](#nvidia-variant-dux-ws-nvidia)).
 
 ## Status / caveats
 

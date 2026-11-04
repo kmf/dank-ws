@@ -5,7 +5,7 @@ Before=systemd-user-sessions.service docker.socket docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/dank-ws-docker-group
+ExecStart=/usr/libexec/dux-ws-docker-group
 RemainAfterExit=yes
 
 [Install]

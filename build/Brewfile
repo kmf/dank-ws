@@ -1,5 +1,5 @@
-# dank-ws: optional shell tools from Homebrew. Not installed automatically; run
-#   brew bundle --file /usr/share/dank-ws/Brewfile
+# dux-ws: optional shell tools from Homebrew. Not installed automatically; run
+#   brew bundle --file /usr/share/dux-ws/Brewfile
 # brew's bin directory comes AFTER the system paths (see /etc/profile.d/brew.sh), so these never
 # shadow image tools. starship is in the image already (COPR), so it is not listed here.
 brew "eza"

@@ -11,9 +11,9 @@ on:
       variant:
         description: Which image to build an installer ISO for
         type: choice
-        # Rolling-only for now; re-enable with: [dank-ws, dank-ws-nvidia, both]
-        options: [dank-ws]
-        default: dank-ws
+        # Rolling-only for now; re-enable with: [dux-ws, dux-ws-nvidia, both]
+        options: [dux-ws]
+        default: dux-ws
       tag:
         description: Image tag on GHCR to embed in the ISO
         type: string
@@ -50,8 +50,8 @@ jobs:
           VARIANT: ${{ inputs.variant }}
         run: |
           case "${VARIANT}" in
-            both) echo 'matrix={"image_name":["dank-ws","dank-ws-nvidia"]}' >> "${GITHUB_OUTPUT}" ;;
-            dank-ws|dank-ws-nvidia) echo "matrix={\"image_name\":[\"${VARIANT}\"]}" >> "${GITHUB_OUTPUT}" ;;
+            both) echo 'matrix={"image_name":["dux-ws","dux-ws-nvidia"]}' >> "${GITHUB_OUTPUT}" ;;
+            dux-ws|dux-ws-nvidia) echo "matrix={\"image_name\":[\"${VARIANT}\"]}" >> "${GITHUB_OUTPUT}" ;;
             *) echo "::error::unknown variant ${VARIANT}"; exit 1 ;;
           esac
 
@@ -134,7 +134,7 @@ jobs:
           rm "${IMAGE_NAME}-install.iso"
           if ! gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             # may race with the other matrix job: fall through to upload if the release now exists
-            gh release create "${RELEASE_TAG}" --prerelease --title "Dank Workstation installer ISOs ${RELEASE_TAG}" \
+            gh release create "${RELEASE_TAG}" --prerelease --title "Dux Workstation installer ISOs ${RELEASE_TAG}" \
               --notes "Split installer ISO parts. Reassemble: cat <name>-install.iso.part* > <name>-install.iso, then sha256sum -c SHA256SUMS-<name> --ignore-missing (see README)." \
               || gh release view "${RELEASE_TAG}" >/dev/null
           fi

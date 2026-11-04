@@ -34,18 +34,18 @@ test -f /usr/share/fish/vendor_conf.d/ublue-brew.fish
 
 # /home -> /var/home on bootc. brew-setup.service creates and chowns the tree; this keeps the top
 # directory present and owned by the first user (UID/GID 1000) on every boot, without a recursive walk.
-cat > /usr/lib/tmpfiles.d/dank-ws-homebrew.conf <<'EOT'
+cat > /usr/lib/tmpfiles.d/dux-ws-homebrew.conf <<'EOT'
 # Homebrew prefix parent (see build/homebrew.sh); brew-setup.service unpacks .linuxbrew below it.
 d /var/home/linuxbrew 0755 1000 1000 -
 EOT
 
-install -D -m 0644 /run/build/Brewfile /usr/share/dank-ws/Brewfile
-grep -q '^brew "eza"' /usr/share/dank-ws/Brewfile
+install -D -m 0644 /run/build/Brewfile /usr/share/dux-ws/Brewfile
+grep -q '^brew "eza"' /usr/share/dux-ws/Brewfile
 
 for f in "${TARBALL}" /usr/lib/systemd/system/brew-* /usr/lib/systemd/system-preset/01-homebrew.preset \
          /etc/profile.d/brew.sh /etc/profile.d/brew-bash-completion.sh /etc/security/limits.d/30-brew-limits.conf \
-         /usr/share/fish/vendor_conf.d/ublue-brew.fish /usr/lib/tmpfiles.d/dank-ws-homebrew.conf \
-         /usr/share/dank-ws/Brewfile; do
+         /usr/share/fish/vendor_conf.d/ublue-brew.fish /usr/lib/tmpfiles.d/dux-ws-homebrew.conf \
+         /usr/share/dux-ws/Brewfile; do
     if [[ -f "$f" && ! -L "$f" ]]; then setfattr -n user.component -v "${COMPONENT}" "$f"; fi
 done
 test "$(getfattr --absolute-names -n user.component --only-values "${TARBALL}")" = "${COMPONENT}"

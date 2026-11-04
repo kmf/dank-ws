@@ -9,13 +9,18 @@
 #   * type 802-3-ethernet and connection.autoconnect=no
 #   * connection.id == connection.interface-name (Anaconda names profiles after the device;
 #     user-made profiles are "Wired connection N" or a custom name)
-#   * the profile UUID has not been handled before (stamp in /var/lib/dank-ws/wired-autoconnect/)
+#   * the profile UUID has not been handled before (stamp in /var/lib/dux-ws/wired-autoconnect/)
 # After the first pass every matching UUID is stamped, so if you later set autoconnect=no on purpose
-# it stays that way. Opt out entirely: touch /etc/dank-ws/no-wired-autoconnect-fix
+# it stays that way. Opt out entirely: touch /etc/dux-ws/no-wired-autoconnect-fix
 set -euo pipefail
 
+# The pre-rename (dank-ws) opt-out file and stamps are still honoured.
+[ -e /etc/dux-ws/no-wired-autoconnect-fix ] && exit 0
 [ -e /etc/dank-ws/no-wired-autoconnect-fix ] && exit 0
-stamps=/var/lib/dank-ws/wired-autoconnect
+stamps=/var/lib/dux-ws/wired-autoconnect
+if [ ! -d "$stamps" ] && [ -d /var/lib/dank-ws/wired-autoconnect ]; then
+    mkdir -p /var/lib/dux-ws && cp -a /var/lib/dank-ws/wired-autoconnect "$stamps"
+fi
 mkdir -p "$stamps"
 
 nmcli -t -f UUID,TYPE connection show | while IFS=: read -r uuid type; do

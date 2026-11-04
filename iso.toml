@@ -8,7 +8,7 @@
 # installation destination (with the "Encrypt my data" LUKS checkbox and custom
 # partitioning) and user creation are all asked on the target machine.
 #
-# The ISOs embed and install the :stable DMS channel (avengemedia/dms). After install, %post
+# The ISOs embed and install the :stable DMS channel (duxlabs/dms). After install, %post
 # re-points the system at the published GHCR image (@IMAGE@ = ghcr.io/<owner>/<image>:stable) so it
 # keeps receiving updates (bootc/uupd) instead of staying on the embedded copy. Users can then
 # `bootc switch` to :rolling (see README, "Choosing a DMS channel").
@@ -16,7 +16,7 @@
 # shipped in the image (/etc/containers/policy.json, see build/signing.sh).
 # Networking: `network --device=link ... --onboot=yes` plus the %post loop give installed wired
 # profiles autoconnect=yes (Anaconda defaults inactive NICs to autoconnect=no). Existing installs are
-# fixed by dank-ws-wired-autoconnect.service.
+# fixed by dux-ws-wired-autoconnect.service.
 # Branding: anaconda-iso has no branding options ([customizations.iso] is rejected for this type);
 # menu/product name, logos and volume label come from os-release and centos-logos. See README,
 # "Installer branding".

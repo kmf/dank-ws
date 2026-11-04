@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NVIDIA variant (dank-ws-nvidia): swap in the ublue-os akmods kernel, install the
+# NVIDIA variant (dux-ws-nvidia): swap in the ublue-os akmods kernel, install the
 # prebuilt kmod-nvidia (open kernel modules) plus negativo17's userspace driver.
 # Adapted from ublue-os/bluefin-lts build_scripts/overrides/gdx/20-nvidia.sh and
 # build_scripts/scripts/kernel-swap.sh.
@@ -98,9 +98,9 @@ if [[ ! -s /etc/pki/akmods/certs/akmods-ublue.der ]]; then
         "https://github.com/ublue-os/akmods/raw/main/certs/public_key.der"
 fi
 cp -av /run/build/nvidia_files/. /
-chown root:root /usr/bin/dank-ws-enroll-mok /etc/profile.d/dank-ws-nvidia-mok.sh
-chmod 0755 /usr/bin/dank-ws-enroll-mok
-chmod 0644 /etc/profile.d/dank-ws-nvidia-mok.sh
+chown root:root /usr/bin/dux-ws-enroll-mok /etc/profile.d/dux-ws-nvidia-mok.sh
+chmod 0755 /usr/bin/dux-ws-enroll-mok
+chmod 0644 /etc/profile.d/dux-ws-nvidia-mok.sh
 
 # The initramfs for the swapped kernel + nvidia is rebuilt by build/initramfs.sh (next Containerfile
 # step, run for both variants).

@@ -53,7 +53,7 @@ mv /opt/1Password "${APP_DIR}"
 find /usr /etc -lname '/opt/1Password*' -print | while read -r l; do
     ln -snf "$(readlink "$l" | sed "s|^/opt/1Password|${APP_DIR}|")" "$l"
 done
-cat > /usr/lib/tmpfiles.d/dank-ws-1password.conf <<EOT
+cat > /usr/lib/tmpfiles.d/dux-ws-1password.conf <<EOT
 # 1Password lives in ${APP_DIR} (image); /opt is /var/opt on bootc. Recreate the path it hardcodes.
 L /var/opt/1Password - - - - ${APP_DIR}
 EOT
@@ -69,7 +69,7 @@ if [[ -f "${APP_DIR}/1password-mcp" ]]; then
     chmod 2755 "${APP_DIR}/1password-mcp"
 fi
 
-cat > /usr/lib/sysusers.d/dank-ws-1password.conf <<EOT
+cat > /usr/lib/sysusers.d/dux-ws-1password.conf <<EOT
 # Groups of 1Password's setgid helpers (browser integration, MCP server). Fixed GIDs: the binaries in
 # ${APP_DIR} are chgrp'd to these numbers at image build time.
 g onepassword     ${GID_ONEPASSWORD}
@@ -80,12 +80,12 @@ EOT
 # Wayland. 1Password 8.12 is built on Electron >= 38, which ignores ELECTRON_OZONE_PLATFORM_HINT (removed
 # upstream) and defaults to --ozone-platform=auto, i.e. Wayland only when XDG_SESSION_TYPE=wayland. Pass
 # the platform explicitly whenever a Wayland display exists, so it never silently falls back to
-# Xwayland (whose clipboard goes through xwayland-satellite). DANK_WS_1PASSWORD_X11=1 forces X11.
+# Xwayland (whose clipboard goes through xwayland-satellite). DUX_WS_1PASSWORD_X11=1 (or the old DANK_WS_1PASSWORD_X11=1) forces X11.
 rm -f /usr/bin/1password
 cat > /usr/bin/1password <<EOT
 #!/usr/bin/sh
-# dank-ws: start 1Password as a native Wayland app in a Wayland session (see build/1password.sh).
-if [ -n "\${WAYLAND_DISPLAY:-}" ] && [ -z "\${DANK_WS_1PASSWORD_X11:-}" ]; then
+# dux-ws: start 1Password as a native Wayland app in a Wayland session (see build/1password.sh).
+if [ -n "\${WAYLAND_DISPLAY:-}" ] && [ -z "\${DUX_WS_1PASSWORD_X11:-}\${DANK_WS_1PASSWORD_X11:-}" ]; then
     exec ${APP_DIR}/1password --ozone-platform=wayland "\$@"
 fi
 exec ${APP_DIR}/1password "\$@"
@@ -121,7 +121,7 @@ op --version
     find "${APP_DIR}" -type f
     rpm -ql 1password | grep -v '^/opt/'
     rpm -ql 1password-cli
-    find /usr/lib/tmpfiles.d/dank-ws-1password.conf /usr/lib/sysusers.d/dank-ws-1password.conf \
+    find /usr/lib/tmpfiles.d/dux-ws-1password.conf /usr/lib/sysusers.d/dux-ws-1password.conf \
          /usr/bin/1password /etc/yum.repos.d/1password.repo /etc/1password /usr/share/doc/1password \
          /usr/share/polkit-1/actions/com.1password.1Password.policy -type f 2>/dev/null
 } | sort -u | while read -r f; do

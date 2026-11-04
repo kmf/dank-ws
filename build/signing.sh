@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # Enforce cosign signatures for this project's images on installed systems
 # (same layout as Bluefin's ublue-os-signing):
-#   /etc/pki/containers/dank-ws.pub            public key (copied from cosign.pub by the Containerfile)
-#   /etc/containers/registries.d/dank-ws.yaml  read cosign signatures stored as registry attachments
+#   /etc/pki/containers/dux-ws.pub            public key (copied from cosign.pub by the Containerfile)
+#   /etc/containers/registries.d/dux-ws.yaml  read cosign signatures stored as registry attachments
 #   /etc/containers/policy.json                distro default policy + sigstoreSigned entries for our images
 # Usage: signing.sh <registry-namespace, e.g. ghcr.io/kmf> <image-name>...
 set -euo pipefail
 
 NAMESPACE="$1"
 shift
-PUBKEY=/etc/pki/containers/dank-ws.pub
+PUBKEY=/etc/pki/containers/dux-ws.pub
 
 test -s "${PUBKEY}"
 
 install -d /etc/containers/registries.d
-cat > /etc/containers/registries.d/dank-ws.yaml <<EOT
+cat > /etc/containers/registries.d/dux-ws.yaml <<EOT
 docker:
   ${NAMESPACE}:
     use-sigstore-attachments: true

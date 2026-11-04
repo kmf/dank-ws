@@ -10,7 +10,7 @@ on:
       - "**/*.md"
   schedule:
     - cron: "0 5 * * 0" # weekly, Sunday 05:00 UTC (picks up base image + COPR updates)
-    - cron: "0 1 * * *" # nightly 03:00 SAST: :rolling only, skipped when avengemedia/dms-git is unchanged
+    - cron: "0 1 * * *" # nightly 03:00 SAST: :rolling only, skipped when duxlabs/dms-git is unchanged
   workflow_dispatch:
     inputs:
       nightly:
@@ -35,8 +35,8 @@ env:
   DEFAULT_CHANNEL: rolling
   DEFAULT_TAG: latest
   # Image:channel pairs actually built (space-separated). Rolling (+ nvidia rolling) for now; to re-enable
-  # the rest, set: "dank-ws:stable dank-ws:rolling dank-ws-nvidia:stable dank-ws-nvidia:rolling"
-  ENABLED_BUILDS: dank-ws:rolling dank-ws-nvidia:rolling
+  # the rest, set: "dux-ws:stable dux-ws:rolling dux-ws-nvidia:stable dux-ws-nvidia:rolling"
+  ENABLED_BUILDS: dux-ws:rolling dux-ws-nvidia:rolling
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -52,22 +52,23 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       dms_git_fingerprint: ${{ steps.plan.outputs.fingerprint }}
     steps:
-      - name: Decide channels and check avengemedia/dms-git for changes
+      - name: Decide channels and check duxlabs/dms-git for changes
         id: plan
         env:
           NIGHTLY: ${{ github.event.schedule == '0 1 * * *' || inputs.nightly == true }}
         run: |
           # Fingerprint = name:latest-succeeded-build-id of every package in the dms-git COPR
-          # (dms-git, quickshell-git, ...). Stored as a label on :rolling to detect changes.
-          fp="$(curl -fsS --retry 3 "https://copr.fedorainfracloud.org/api_3/package/list?ownername=avengemedia&projectname=dms-git&with_latest_succeeded_build=true" \
-            | jq -r '[.items[] | select(.builds.latest_succeeded != null) | "\(.name):\(.builds.latest_succeeded.id)"] | sort | join(",")')" || fp=""
+          # (dms in duxlabs/dms-git, quickshell-git and dux-* in duxlabs/dux-repo). Stored as a label on :rolling to detect changes.
+          # duxlabs/dux-repo is included because quickshell-git and the dux-*-git tools moved there.
+          fp="$(for proj in dms-git dux-repo; do curl -fsS --retry 3 "https://copr.fedorainfracloud.org/api_3/package/list?ownername=duxlabs&projectname=${proj}&with_latest_succeeded_build=true" \
+            | jq -r --arg p "${proj}" '.items[] | select(.builds.latest_succeeded != null) | "\($p)/\(.name):\(.builds.latest_succeeded.id)"' || exit 1; done | sort | paste -sd, -)" || fp=""
           echo "fingerprint=${fp}" >> "${GITHUB_OUTPUT}"
           echo "dms-git COPR fingerprint: ${fp:-<unavailable>}"
           emit_matrix() {
             # image_name x channel, one build job per pair
             jq -cn --arg ch "$1" --arg en "${ENABLED_BUILDS}" '{include: [[
-              {image_name: "dank-ws", enable_nvidia: "0", akmods_nvidia_image: "scratch"},
-              {image_name: "dank-ws-nvidia", enable_nvidia: "1", akmods_nvidia_image: "ghcr.io/ublue-os/akmods-nvidia-open:centos-10"}
+              {image_name: "dux-ws", enable_nvidia: "0", akmods_nvidia_image: "scratch"},
+              {image_name: "dux-ws-nvidia", enable_nvidia: "1", akmods_nvidia_image: "ghcr.io/ublue-os/akmods-nvidia-open:centos-10"}
             ][] as $i | ($ch | split(" ") | map(select(. != "")))[] as $c | $i + {channel: $c}]
               | map(select(("\(.image_name):\(.channel)") as $k | ($en | split(" ") | index($k)) != null))}' | sed 's/^/matrix=/' >> "${GITHUB_OUTPUT}"
           }
@@ -79,15 +80,15 @@ jobs:
           emit_matrix rolling
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           skip=true
-          for img in dank-ws dank-ws-nvidia; do
+          for img in dux-ws dux-ws-nvidia; do
             case " ${ENABLED_BUILDS} " in *" ${img}:rolling "*) ;; *) continue ;; esac
             cur="$(skopeo inspect --no-tags "docker://ghcr.io/${owner}/${img}:rolling" 2>/dev/null \
-              | jq -r '.Labels["io.github.kmf.dank-ws.dms-git-fingerprint"] // ""')" || cur=""
+              | jq -r '.Labels["io.github.kmf.dux-ws.dms-git-fingerprint"] // ""')" || cur=""
             echo "${img}:rolling fingerprint: ${cur:-<none>}"
             if [ -z "${fp}" ] || [ "${cur}" != "${fp}" ]; then skip=false; fi
           done
           echo "skip=${skip}" >> "${GITHUB_OUTPUT}"
-          [ "${skip}" = true ] && echo "::notice::avengemedia/dms-git unchanged since the last :rolling build, skipping" || true
+          [ "${skip}" = true ] && echo "::notice::duxlabs/dms-git unchanged since the last :rolling build, skipping" || true
 
   build_push:
     name: Build ${{ matrix.image_name }} (${{ matrix.channel }})
@@ -153,7 +154,7 @@ jobs:
               --build-arg ENABLE_NVIDIA="${ENABLE_NVIDIA}" \
               --build-arg AKMODS_NVIDIA_IMAGE="${AKMODS_NVIDIA_IMAGE}" \
               --build-arg DMS_CHANNEL="${channel}" \
-              $( [ "${channel}" = rolling ] && [ -n "${DMS_GIT_FINGERPRINT}" ] && echo --label "io.github.kmf.dank-ws.dms-git-fingerprint=${DMS_GIT_FINGERPRINT}" ) \
+              $( [ "${channel}" = rolling ] && [ -n "${DMS_GIT_FINGERPRINT}" ] && echo --label "io.github.kmf.dux-ws.dms-git-fingerprint=${DMS_GIT_FINGERPRINT}" ) \
               --build-arg IMAGE_SOURCE="${{ github.server_url }}/${{ github.repository }}" \
               --tag "${IMAGE_REF}:${channel}" \
               -f Containerfile . && break
@@ -183,7 +184,7 @@ jobs:
             if [ "${channel}" = "${DEFAULT_CHANNEL}" ]; then
               sudo podman tag "${IMAGE_REF}:${channel}" "${IMAGE_REF}:${DEFAULT_TAG}" "${IMAGE_REF}:${BUILD_DATE}"
             fi
-            sudo podman image inspect "${IMAGE_REF}:${channel}" --format "${channel}: {{len .RootFS.Layers}} layers, dms-git fingerprint: {{index .Labels \"io.github.kmf.dank-ws.dms-git-fingerprint\"}}"
+            sudo podman image inspect "${IMAGE_REF}:${channel}" --format "${channel}: {{len .RootFS.Layers}} layers, dms-git fingerprint: {{index .Labels \"io.github.kmf.dux-ws.dms-git-fingerprint\"}}"
           }
           sudo podman image prune -f >/dev/null || true
 

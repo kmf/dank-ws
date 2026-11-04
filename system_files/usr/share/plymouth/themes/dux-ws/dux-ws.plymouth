@@ -1,12 +1,12 @@
 [Plymouth Theme]
-Name=dank-ws
-Description=Dank Workstation (dank-ws) penguin logo with the spinner theme's throbber and password prompt
+Name=dux-ws
+Description=Dux Workstation (dux-ws) penguin logo with the spinner theme's throbber and password prompt
 ModuleName=two-step
 
 [two-step]
 Font=Noto Sans 12
 TitleFont=Noto Sans Light 30
-ImageDir=/usr/share/plymouth/themes/dank-ws
+ImageDir=/usr/share/plymouth/themes/dux-ws
 WatermarkHorizontalAlignment=.5
 WatermarkVerticalAlignment=.36
 DialogHorizontalAlignment=.5

@@ -1,10 +1,10 @@
-export image_name := env("IMAGE_NAME", "dank-ws")
+export image_name := env("IMAGE_NAME", "dux-ws")
 export base_tag := env("BASE_TAG", "c10s")
 export default_tag := env("DEFAULT_TAG", "latest")
 export dms_channel := env("DMS_CHANNEL", "rolling")
 # DMS channel the installer ISOs embed and the installed system follows (ghcr.io/<owner>/<image>:<channel>)
 export iso_channel := env("ISO_CHANNEL", "stable")
-export nvidia_image_name := env("NVIDIA_IMAGE_NAME", "dank-ws-nvidia")
+export nvidia_image_name := env("NVIDIA_IMAGE_NAME", "dux-ws-nvidia")
 export akmods_nvidia_image := env("AKMODS_NVIDIA_IMAGE", "ghcr.io/ublue-os/akmods-nvidia-open:centos-10")
 export iso_owner := env("ISO_OWNER", "kmf")
 export bib_image := env("BIB_IMAGE", "quay.io/centos-bootc/bootc-image-builder:latest")
@@ -22,7 +22,7 @@ check:
 
 # Build the container image into root's podman storage (needed by bootc-image-builder)
 # Parameters:
-#   target_image: image name (default: localhost/dank-ws)
+#   target_image: image name (default: localhost/dux-ws)
 # tag: image tag (default: latest)
 [group('Build')]
 build target_image=("localhost/" + image_name) tag=default_tag channel=dms_channel:
@@ -38,7 +38,7 @@ build target_image=("localhost/" + image_name) tag=default_tag channel=dms_chann
 
 # Build the NVIDIA variant (proprietary driver, kernel from ublue-os akmods) into root's podman storage
 # Parameters:
-#   target_image: image name (default: localhost/dank-ws-nvidia)
+#   target_image: image name (default: localhost/dux-ws-nvidia)
 #   tag: image tag (default: latest)
 [group('Build')]
 build-nvidia target_image=("localhost/" + nvidia_image_name) tag=default_tag channel=dms_channel:
@@ -83,7 +83,7 @@ build-qcow2 target_image=("localhost/" + image_name) tag=default_tag: (build tar
 build-qcow2-nvidia target_image=("localhost/" + nvidia_image_name) tag=default_tag: (build-nvidia target_image tag) (_build-bib target_image tag "qcow2" "image.toml")
 
 # Internal: build the INTERACTIVE installer ISO for one variant
-# Parameters: name (dank-ws|dank-ws-nvidia) target_image tag
+# Parameters: name (dux-ws|dux-ws-nvidia) target_image tag
 # Output: output/<name>/bootiso/install.iso (embeds target_image, so the install works offline)
 [private]
 _build-iso name target_image tag:
@@ -106,11 +106,11 @@ _build-iso name target_image tag:
     sudo chown -R "$USER:$USER" output
     ls -lh "output/{{ name }}/bootiso/install.iso"
 
-# Build the interactive installer ISO for dank-ws (output/dank-ws/bootiso/install.iso)
+# Build the interactive installer ISO for dux-ws (output/dux-ws/bootiso/install.iso)
 [group('Build Virtual Machine Image')]
 build-iso target_image=("localhost/" + image_name) tag=iso_channel: (build target_image tag iso_channel) (_build-iso image_name target_image tag)
 
-# Build the interactive installer ISO for dank-ws-nvidia (output/dank-ws-nvidia/bootiso/install.iso)
+# Build the interactive installer ISO for dux-ws-nvidia (output/dux-ws-nvidia/bootiso/install.iso)
 [group('Build Virtual Machine Image')]
 build-iso-nvidia target_image=("localhost/" + nvidia_image_name) tag=iso_channel: (build-nvidia target_image tag iso_channel) (_build-iso nvidia_image_name target_image tag)
 

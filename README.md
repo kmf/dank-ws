@@ -188,10 +188,14 @@ Any push to `main` also keeps it alive; check `gh run list -R kmf/dux-ws -w buil
 
 #### Signature enforcement (installed systems)
 `build/signing.sh` runs at image build time and ships, like Bluefin's `ublue-os-signing`:
-`/etc/pki/containers/dux-ws.pub` (this repo's `cosign.pub`), `/etc/containers/registries.d/dux-ws.yaml`
+`/usr/lib/pki/containers/dux-ws.pub` (this repo's `cosign.pub`; under `/usr` so image updates always
+replace it — a copy under `/etc` would drift via ostree 3-way merge), `/etc/containers/registries.d/dux-ws.yaml`
 (`use-sigstore-attachments: true` for `ghcr.io/kmf`) and `/etc/containers/policy.json` (the distro default
-plus `sigstoreSigned` entries for `ghcr.io/kmf/dux-ws` and `ghcr.io/kmf/dux-ws-nvidia`, `signedIdentity: matchRepository`).
-Other registries keep the distro default policy. Forks: build with `--build-arg IMAGE_VENDOR=<owner>` and your own `cosign.pub`.
+plus `sigstoreSigned` entries for `ghcr.io/kmf/dux-ws` and `ghcr.io/kmf/dux-ws-nvidia`, `signedIdentity: matchRepository`,
+`keyPath` pointing at the `/usr` key).
+`dux-ws-signing-migrate.service` runs on boot to refresh `/etc/pki/containers/dux-ws.pub` from the `/usr` key and
+rewrite any drifted `policy.json` that still names the old `/etc` path, so existing installs keep verifying after
+key changes. Other registries keep the distro default policy. Forks: build with `--build-arg IMAGE_VENDOR=<owner>` and your own `cosign.pub`.
 `bootc switch --enforce-container-sigpolicy` (used in `iso.toml`) makes bootc itself apply this policy.
 Verify manually: `cosign verify --key cosign.pub ghcr.io/kmf/dux-ws:latest`.
 

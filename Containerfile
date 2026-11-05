@@ -493,9 +493,15 @@ COPY system_files/ /
 
 # Signature enforcement: installed systems only accept our images when they carry a valid
 # cosign signature (public key = cosign.pub, signed by the CI workflow). See build/signing.sh.
-COPY cosign.pub /etc/pki/containers/dux-ws.pub
+# Key lives under /usr so bootc/ostree updates always replace it (/etc drifts via 3-way merge).
+COPY cosign.pub /usr/lib/pki/containers/dux-ws.pub
 RUN --mount=type=bind,src=build,dst=/run/build \
-    /run/build/signing.sh "ghcr.io/${IMAGE_VENDOR}" dux-ws dux-ws-nvidia
+    --mount=type=bind,src=cosign.pub,dst=/run/cosign.pub,ro \
+    cmp -s /run/cosign.pub /usr/lib/pki/containers/dux-ws.pub && \
+    /run/build/signing.sh "ghcr.io/${IMAGE_VENDOR}" dux-ws dux-ws-nvidia && \
+    jq -e --arg k /usr/lib/pki/containers/dux-ws.pub \
+        --arg s "ghcr.io/${IMAGE_VENDOR}/dux-ws" \
+        '.transports.docker[$s][0].keyPath == $k' /etc/containers/policy.json > /dev/null
 
 # Default niri + DMS config. Generated with the same command users would run
 # (`dms setup headless`; it refuses to run as root, hence `nobody`) so it always matches the
@@ -548,9 +554,11 @@ RUN if [ -f /usr/lib/systemd/user/voxtype.service ]; then \
         rpm -q wtype; \
     else rm -f /usr/lib/systemd/user/voxtype.service.d/10-dux-ws.conf; fi
 
-RUN systemctl enable flatpak-preinstall.service dux-ws-docker-group.service dux-ws-libvirt-group.service dux-ws-wired-autoconnect.service && \
+RUN systemctl enable flatpak-preinstall.service dux-ws-docker-group.service dux-ws-libvirt-group.service dux-ws-wired-autoconnect.service dux-ws-signing-migrate.service && \
     test -x /usr/libexec/dux-ws-wired-autoconnect && bash -n /usr/libexec/dux-ws-wired-autoconnect && \
-    systemctl is-enabled dux-ws-wired-autoconnect.service dux-ws-libvirt-group.service && \
+    systemctl is-enabled dux-ws-wired-autoconnect.service dux-ws-libvirt-group.service dux-ws-signing-migrate.service && \
+    test -x /usr/libexec/dux-ws-signing-migrate && bash -n /usr/libexec/dux-ws-signing-migrate && \
+    test -s /usr/lib/pki/containers/dux-ws.pub && \
     bash -n /usr/libexec/dux-ws-libvirt-group && \
     ( n=0; for k in /usr/lib/modules/*/; do \
           [ -e "${k}vmlinuz" ] || continue; n=$((n + 1)); \

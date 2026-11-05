@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # Enforce cosign signatures for this project's images on installed systems
-# (same layout as Bluefin's ublue-os-signing):
-#   /etc/pki/containers/dux-ws.pub            public key (copied from cosign.pub by the Containerfile)
+# (same layout as Bluefin's ublue-os-signing, with the key under /usr so image
+# updates always replace it — /etc is subject to ostree 3-way merge drift):
+#   /usr/lib/pki/containers/dux-ws.pub        public key (copied from cosign.pub by the Containerfile)
 #   /etc/containers/registries.d/dux-ws.yaml  read cosign signatures stored as registry attachments
-#   /etc/containers/policy.json                distro default policy + sigstoreSigned entries for our images
+#   /etc/containers/policy.json               distro default policy + sigstoreSigned entries for our images
+# Existing installs whose /etc/containers/policy.json still names the old
+# /etc/pki/containers/dux-ws.pub path are repaired on boot by
+# dux-ws-signing-migrate.service (syncs the /etc key from /usr and rewrites keyPath).
 # Usage: signing.sh <registry-namespace, e.g. ghcr.io/kmf> <image-name>...
 set -euo pipefail
 
 NAMESPACE="$1"
 shift
-PUBKEY=/etc/pki/containers/dux-ws.pub
+PUBKEY=/usr/lib/pki/containers/dux-ws.pub
 
 test -s "${PUBKEY}"
 
@@ -47,3 +51,10 @@ jq --argjson e "${entries}" '
     | .transports["dir"][""] = accept' "${src}" > /etc/containers/policy.json.new
 mv /etc/containers/policy.json.new /etc/containers/policy.json
 jq -e . /etc/containers/policy.json > /dev/null
+# Fail the build if any of our image scopes still point at a non-/usr key.
+for img in "$@"; do
+    jq -e --arg scope "${NAMESPACE}/${img}" --arg key "${PUBKEY}" '
+        .transports.docker[$scope][0].type == "sigstoreSigned"
+        and .transports.docker[$scope][0].keyPath == $key
+    ' /etc/containers/policy.json > /dev/null
+done

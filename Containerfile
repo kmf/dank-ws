@@ -230,6 +230,18 @@ RUN --mount=type=tmpfs,dst=/var \
     find /var -mindepth 1 -delete && \
     rm -rf /run/rhsm /run/selinux-policy
 
+# Virtualization: libvirt (modular, socket-activated daemons) + QEMU/KVM, virt-install, swtpm and
+# UEFI firmware, all from CentOS Stream 10 AppStream. Members of `libvirt` manage qemu:///system VMs
+# (stock polkit rule); dux-ws-libvirt-group.service adds UID 1000. virt-manager is not in EL10: use Flathub.
+RUN --mount=type=tmpfs,dst=/var \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/boot \
+    --mount=type=bind,src=build,dst=/run/build \
+    /run/build/virt.sh && \
+    dnf clean all && \
+    find /var -mindepth 1 -delete && \
+    rm -rf /run/rhsm /run/selinux-policy /run/libvirt
+
 # Extra fonts: Fira Code (EPEL), plus pinned, checksum-verified upstream releases of CodeNewRoman /
 # CaskaydiaCove / CaskaydiaMono Nerd Fonts, Maple Mono NF / NF CN, Inconsolata, Fira Mono, Geist and
 # Geist Mono under /usr/share/fonts (tagged fonts-extra for their own rechunked layer). See build/fonts.sh.
@@ -536,9 +548,10 @@ RUN if [ -f /usr/lib/systemd/user/voxtype.service ]; then \
         rpm -q wtype; \
     else rm -f /usr/lib/systemd/user/voxtype.service.d/10-dux-ws.conf; fi
 
-RUN systemctl enable flatpak-preinstall.service dux-ws-docker-group.service dux-ws-wired-autoconnect.service && \
+RUN systemctl enable flatpak-preinstall.service dux-ws-docker-group.service dux-ws-libvirt-group.service dux-ws-wired-autoconnect.service && \
     test -x /usr/libexec/dux-ws-wired-autoconnect && bash -n /usr/libexec/dux-ws-wired-autoconnect && \
-    systemctl is-enabled dux-ws-wired-autoconnect.service && \
+    systemctl is-enabled dux-ws-wired-autoconnect.service dux-ws-libvirt-group.service && \
+    bash -n /usr/libexec/dux-ws-libvirt-group && \
     ( n=0; for k in /usr/lib/modules/*/; do \
           [ -e "${k}vmlinuz" ] || continue; n=$((n + 1)); \
           { find "$k" -name 'fuse.ko*' | grep -q . || grep -q '/fuse.ko' "${k}modules.builtin"; } || \

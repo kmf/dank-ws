@@ -1,0 +1,12 @@
+[Unit]
+Description=Add the first user (UID 1000) to the libvirt group
+After=systemd-sysusers.service local-fs.target
+Before=systemd-user-sessions.service virtqemud.socket
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/dux-ws-libvirt-group
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

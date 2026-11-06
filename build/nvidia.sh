@@ -5,12 +5,14 @@
 # build_scripts/scripts/kernel-swap.sh.
 #
 # Expects (bind-mounted by the Containerfile):
-#   /run/akmods/rpms         akmods-nvidia-open rpms (kmods/, ublue-os/)
-#   /run/akmods/kernel-rpms  matching kernel rpms
-#   /run/build/nvidia_files  files copied verbatim onto /
+#   /tmp/akmods-nvidia/rpms         akmods-nvidia-open rpms (kmods/, ublue-os/)
+#   /tmp/akmods-nvidia/kernel-rpms  matching kernel rpms
+#   /run/build/nvidia_files         files copied verbatim onto /
+# Mounted under /tmp (not /run/akmods) so installing the akmods RPM, which owns
+# /run/akmods, does not hit "cpio: chown failed - Device or resource busy".
 set -xeuo pipefail
 
-AKMODS=/run/akmods
+AKMODS=/tmp/akmods-nvidia
 mkdir -p /var/roothome
 
 dnf -y install 'dnf-command(versionlock)' mokutil
@@ -49,7 +51,9 @@ curl -fsSL --retry 3 "https://negativo17.org/repos/fedora-nvidia.repo" \
     | sed "s/\$releasever/${FEDORA_VERSION}/g" > /etc/yum.repos.d/fedora-nvidia.repo
 dnf config-manager --set-disabled fedora-nvidia
 
-dnf -y install --enablerepo=fedora-nvidia \
+# Exclude the akmods tooling package: we ship prebuilt kmods only, and even with
+# the mount moved off /run/akmods we do not want build-time tooling in the image.
+dnf -y install --enablerepo=fedora-nvidia --exclude=akmods \
     "${AKMODS}"/rpms/kmods/kmod-nvidia-"${KERNEL_VRA}"-*.rpm \
     "${AKMODS}"/rpms/ublue-os/*.rpm
 dnf config-manager --set-enabled nvidia-container-toolkit

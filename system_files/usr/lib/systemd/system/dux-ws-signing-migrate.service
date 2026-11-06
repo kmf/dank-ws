@@ -1,0 +1,13 @@
+[Unit]
+Description=Sync dux-ws container signing key from /usr into /etc
+Documentation=https://github.com/kmf/dux-ws
+After=local-fs.target
+Before=uupd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/dux-ws-signing-migrate
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

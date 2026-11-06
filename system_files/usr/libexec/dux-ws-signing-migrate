@@ -1,0 +1,29 @@
+#!/bin/bash
+# Keep container signature verification working when /etc has drifted.
+# ostree/bootc 3-way merge leaves locally-present /etc files alone, so a stale
+# /etc/pki/containers/dux-ws.pub (or a policy.json that still names that path)
+# would reject updates after a key change. The canonical key lives under /usr
+# and is always replaced by image updates; this oneshot refreshes the /etc copy
+# and rewrites keyPath to the /usr location when needed. Idempotent.
+set -euo pipefail
+
+USR_KEY=/usr/lib/pki/containers/dux-ws.pub
+ETC_KEY=/etc/pki/containers/dux-ws.pub
+POLICY=/etc/containers/policy.json
+
+[ -s "${USR_KEY}" ] || exit 0
+
+install -d /etc/pki/containers
+if ! cmp -s "${USR_KEY}" "${ETC_KEY}" 2>/dev/null; then
+    install -m0644 "${USR_KEY}" "${ETC_KEY}"
+fi
+
+if [ -f "${POLICY}" ] && grep -Fq "${ETC_KEY}" "${POLICY}"; then
+    tmp=$(mktemp)
+    # Replace only our keyPath string; leave any other policy entries alone.
+    sed "s|${ETC_KEY}|${USR_KEY}|g" "${POLICY}" > "${tmp}"
+    if jq -e . "${tmp}" >/dev/null 2>&1; then
+        install -m0644 "${tmp}" "${POLICY}"
+    fi
+    rm -f "${tmp}"
+fi

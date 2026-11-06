@@ -190,10 +190,15 @@ RUN --mount=type=tmpfs,dst=/var \
 
 # NVIDIA variant only: swap in the ublue-os akmods kernel and install the
 # proprietary NVIDIA driver (see build/nvidia.sh). No-op for the base image.
+# Bind the akmods image under /tmp (not /run/akmods): the akmods RPM owns
+# /run/akmods, and unpacking it onto a bind-mount of the same path fails with
+# "cpio: chown failed - Device or resource busy". Bluefin mounts the RPMs under
+# /tmp for the same reason; we keep src=/ so the non-NVIDIA build (scratch stage)
+# still mounts cleanly.
 RUN --mount=type=tmpfs,dst=/var \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/boot \
-    --mount=type=bind,from=akmods_nvidia,src=/,dst=/run/akmods \
+    --mount=type=bind,from=akmods_nvidia,src=/,dst=/tmp/akmods-nvidia \
     --mount=type=bind,src=build,dst=/run/build \
     if [ "${ENABLE_NVIDIA}" = "1" ]; then \
         /run/build/nvidia.sh && \
